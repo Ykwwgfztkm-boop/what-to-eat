@@ -514,9 +514,36 @@
   }
   .submit-btn:hover { opacity: 0.88; transform: scale(1.02); }
   .submit-btn:active { transform: scale(0.95); }
+
+  /* ====== Loading screen ====== */
+  .loading-screen {
+    position: fixed; z-index: 999;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #0a0a1a;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: opacity 0.5s;
+  }
+  .loading-screen.done { opacity: 0; pointer-events: none; }
+  .loading-screen .loader-icon {
+    font-size: 3rem; animation: loaderBounce 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes loaderBounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-12px); }
+  }
+  .loading-screen .loader-text {
+    color: #888; font-size: 0.85rem; margin-top: 10px; letter-spacing: 2px;
+  }
 </style>
 </head>
 <body>
+
+<!-- Loading -->
+<div class="loading-screen" id="loadingScreen">
+  <span class="loader-icon">🍔</span>
+  <span class="loader-text">加载中...</span>
+</div>
 
 <!-- HUD -->
 <div class="hud-top">
@@ -613,8 +640,8 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
   }
 }
 </script>
@@ -2691,6 +2718,17 @@ console.log('  🖱 拖拽旋转 | 滚轮缩放 | 点击食物查看详情');
 console.log('  🎡 点击转一转按钮体验食物转盘');
 
 animate();
+
+// Hide loading screen once first frame renders
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    document.getElementById('loadingScreen').classList.add('done');
+    setTimeout(() => {
+      const ls = document.getElementById('loadingScreen');
+      if (ls) ls.remove();
+    }, 600);
+  });
+});
 </script>
 </body>
 </html>
