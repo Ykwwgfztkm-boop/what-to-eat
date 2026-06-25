@@ -1,0 +1,2696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>今天吃什么？（减肥勿入）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #0a0a1a;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  canvas { display: block; }
+
+  /* ====== HUD ====== */
+  .hud-top {
+    position: fixed;
+    top: 16px; left: 0; right: 0;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .hud-top h1 {
+    font-size: 1.15rem;
+    letter-spacing: 3px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(255,152,0,0.4);
+  }
+  .hud-top .sub {
+    font-size: 0.68rem;
+    color: #777;
+    margin-top: 3px;
+    font-style: italic;
+    letter-spacing: 1px;
+  }
+
+  .hud-bottom {
+    position: fixed;
+    bottom: 22px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    z-index: 10;
+  }
+  .hud-bottom button {
+    padding: 11px 18px;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.15);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 1px;
+    background: rgba(255,255,255,0.06);
+    color: #ccc;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s;
+  }
+  .hud-bottom button:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+  .hud-bottom button:active { transform: scale(0.93); }
+  .btn-devil {
+    border-color: rgba(244,67,54,0.3) !important;
+    color: #ff8a80 !important;
+    background: rgba(244,67,54,0.1) !important;
+  }
+  .btn-devil:hover {
+    background: rgba(244,67,54,0.2) !important;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 72px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 0.65rem;
+    color: #444;
+    z-index: 10;
+    pointer-events: none;
+    letter-spacing: 1px;
+  }
+
+  /* ====== Legend ====== */
+  .legend {
+    position: fixed;
+    right: 10px; top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    pointer-events: none;
+  }
+  .legend .grad {
+    width: 5px;
+    border-radius: 3px;
+    background: linear-gradient(to bottom, #f44336, #FF9800, #FFD600, #81C784);
+  }
+  .legend span {
+    font-size: 0.55rem;
+    color: #555;
+    margin: 3px 0;
+  }
+
+  /* ====== Detail popup ====== */
+  .overlay {
+    position: fixed;
+    z-index: 50;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+
+  .detail {
+    position: fixed;
+    z-index: 60;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%) scale(0);
+    background: rgba(16,20,40,0.96);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    padding: 26px 22px;
+    text-align: center;
+    min-width: 260px;
+    max-width: 340px;
+    width: 85vw;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .detail.show { transform: translate(-50%,-50%) scale(1); pointer-events: auto; }
+
+  .detail .big-emoji { font-size: 2.8rem; display: block; margin-bottom: 4px; }
+  .detail .food-name { font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 2px; }
+  .detail .food-note { font-size: 0.75rem; color: #888; margin-bottom: 14px; }
+  .detail .food-kcal {
+    font-size: 2.6rem; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px;
+  }
+  .detail .food-kcal .u { font-size: 0.9rem; font-weight: 400; opacity: 0.4; }
+  .detail .food-exercise { font-size: 0.75rem; color: #999; margin-bottom: 14px; }
+
+  .detail .ingredients {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 14px;
+    text-align: left;
+  }
+  .detail .ingredients .ing-title {
+    font-size: 0.75rem;
+    color: #aaa;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+    text-align: center;
+    font-weight: 600;
+  }
+  /* Stacked bar */
+  .detail .ingredients .ing-stacked {
+    display: flex;
+    height: 22px;
+    border-radius: 11px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    gap: 2px;
+  }
+  .detail .ingredients .ing-stacked .ing-seg {
+    transition: all 0.3s;
+    position: relative;
+  }
+  .detail .ingredients .ing-stacked .ing-seg:first-child { border-radius: 11px 0 0 11px; }
+  .detail .ingredients .ing-stacked .ing-seg:last-child  { border-radius: 0 11px 11px 0; }
+  /* Ingredient rows */
+  .detail .ingredients .ing-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 4px;
+    font-size: 0.8rem;
+  }
+  .detail .ingredients .ing-row .ing-emoji {
+    font-size: 1.4rem;
+    width: 30px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .detail .ingredients .ing-row .ing-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .detail .ingredients .ing-row .ing-name {
+    color: #ddd;
+    font-weight: 500;
+    font-size: 0.78rem;
+  }
+  .detail .ingredients .ing-row .ing-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #1a1a30;
+    overflow: hidden;
+    margin-top: 3px;
+  }
+  .detail .ingredients .ing-row .ing-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  .detail .ingredients .ing-row .ing-kcal {
+    color: #ff9800;
+    font-weight: 700;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    text-align: right;
+    min-width: 40px;
+  }
+  .detail .ingredients .ing-row .ing-pct {
+    color: #666;
+    font-size: 0.65rem;
+    flex-shrink: 0;
+    text-align: right;
+    min-width: 32px;
+  }
+
+  .detail .close-hint { font-size: 0.6rem; color: #444; margin-top: 14px; }
+
+  .detail .close-btn {
+    position: absolute;
+    top: 10px; right: 14px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    color: #aaa;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    z-index: 5;
+  }
+  .detail .close-btn:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+  }
+
+  /* ====== Wheel ====== */
+  .wheel-stage {
+    position: fixed;
+    z-index: 100;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .wheel-stage.active { opacity: 1; }
+
+  .wheel-wrapper {
+    position: relative;
+    width: 510px; height: 510px;
+  }
+
+  .wheel-pointer {
+    position: absolute;
+    top: -26px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 24px solid transparent;
+    border-right: 24px solid transparent;
+    border-top: 42px solid #fff;
+    filter: drop-shadow(0 0 12px rgba(255,152,0,0.6));
+    z-index: 5;
+  }
+
+  .wheel-canvas {
+    width: 510px; height: 510px;
+    border-radius: 50%;
+    box-shadow:
+      0 0 60px rgba(255,152,0,0.25),
+      0 0 120px rgba(255,152,0,0.1),
+      inset 0 0 30px rgba(0,0,0,0.3);
+    transition: filter 0.15s ease;
+  }
+
+  .wheel-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 105px; height: 105px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, rgba(255,255,255,0.25), #1a1a2e);
+    border: 4px solid rgba(255,255,255,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #fff;
+    z-index: 3;
+    box-shadow: 0 0 30px rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+
+  /* Result toast (reused from dice) */
+  .wheel-result {
+    position: fixed;
+    z-index: 120;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%) scale(0);
+    text-align: center;
+    pointer-events: none;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  .wheel-result.show { transform: translate(-50%,-50%) scale(1); }
+  .wheel-result .r-emoji { font-size: 4rem; display: block; }
+  .wheel-result .r-name { font-size: 1.1rem; color: #fff; font-weight: 700; margin-top: 4px; }
+
+  /* ====== Add Food Button & Modal ====== */
+  .add-btn {
+    position: fixed;
+    top: 14px; right: 14px;
+    z-index: 80;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.07);
+    color: #ccc;
+    font-size: 1.3rem;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .add-btn:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(255,152,0,0.5);
+    color: #fff;
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(255,152,0,0.2);
+  }
+
+  .add-overlay {
+    position: fixed;
+    z-index: 150;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .add-overlay.show { opacity: 1; pointer-events: auto; }
+
+  .add-modal {
+    position: fixed;
+    z-index: 160;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%) scale(0);
+    background: rgba(16,20,40,0.97);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 22px 18px;
+    width: 90vw;
+    max-width: 370px;
+    max-height: 82vh;
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .add-modal.show { transform: translate(-50%,-50%) scale(1); pointer-events: auto; }
+  .add-modal h2 {
+    font-size: 1.05rem; color: #fff; text-align: center;
+    margin-bottom: 16px; letter-spacing: 1px;
+  }
+  .add-modal .form-group { margin-bottom: 13px; }
+  .add-modal .form-group label {
+    display: block; font-size: 0.7rem; color: #888;
+    margin-bottom: 4px; letter-spacing: 0.5px;
+  }
+  .add-modal .form-group input,
+  .add-modal .form-group select {
+    width: 100%; padding: 9px 11px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05); color: #fff;
+    font-size: 0.88rem; font-family: inherit; outline: none;
+    transition: border-color 0.2s;
+  }
+  .add-modal .form-group input:focus,
+  .add-modal .form-group select:focus {
+    border-color: rgba(255,152,0,0.5);
+  }
+  .add-modal .form-group select { cursor: pointer; }
+  .add-modal .form-group select option { background: #1a1a30; color: #fff; }
+
+  .name-search-row { display: flex; gap: 6px; }
+  .name-search-row input { flex: 1; }
+  .search-online-btn {
+    flex-shrink: 0; padding: 0 10px; border-radius: 10px; white-space: nowrap;
+    border: 1px solid rgba(255,152,0,0.3); background: rgba(255,152,0,0.1);
+    color: #FF9800; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
+    font-weight: 600; letter-spacing: 0.5px;
+  }
+  .search-online-btn:hover { background: rgba(255,152,0,0.2); border-color: rgba(255,152,0,0.5); }
+  .search-online-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .search-results {
+    display: none; margin-top: 5px; max-height: 280px; overflow-y: auto;
+    background: rgba(10,12,40,0.97); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 4px;
+  }
+  .search-results.show { display: block; }
+  .search-loading, .search-empty { padding: 14px; text-align: center; color: #666; font-size: 0.78rem; }
+  .search-result-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+    border-radius: 8px; cursor: pointer; transition: background 0.15s;
+  }
+  .search-result-item:hover { background: rgba(255,152,0,0.1); }
+  .search-result-item img { width: 38px; height: 38px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+  .search-result-item .no-img { font-size: 1.4rem; width: 38px; text-align: center; flex-shrink: 0; }
+  .search-result-info { flex: 1; min-width: 0; }
+  .search-result-name { display: block; font-size: 0.82rem; color: #eee; }
+  .search-result-brand { font-size: 0.62rem; color: #555; }
+  .search-result-kcal { font-size: 0.68rem; color: #FF9800; font-weight: 600; }
+  .kcal-hint {
+    font-size: 0.65rem; font-weight: 400; letter-spacing: 0;
+    margin-left: 6px; opacity: 0; transition: opacity 0.25s;
+    display: inline;
+  }
+  .kcal-hint.show { opacity: 1; }
+  .kcal-hint.match { color: #FF9800; }
+  .kcal-hint.no-match { color: #666; }
+
+  .emoji-picker {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;
+    max-height: 150px; overflow-y: auto;
+  }
+  .emoji-picker button {
+    width: 34px; height: 34px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04); font-size: 1.1rem;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .emoji-picker button:hover {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,152,0,0.4); transform: scale(1.18);
+  }
+
+  .ing-input-row {
+    display: flex; gap: 5px; align-items: center; margin-bottom: 5px;
+  }
+  .ing-input-row input {
+    padding: 7px 7px !important; font-size: 0.78rem !important;
+  }
+  .ing-input-row .ing-emoji-inp { width: 46px; flex-shrink: 0; text-align: center; }
+  .ing-input-row .ing-name-inp { flex: 1; min-width: 0; }
+  .ing-input-row .ing-kcal-inp { width: 60px; flex-shrink: 0; }
+  .ing-input-row .ing-del {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid rgba(244,67,54,0.25);
+    background: rgba(244,67,54,0.08); color: #ff8a80;
+    font-size: 0.75rem; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .ing-input-row .ing-del:hover {
+    background: rgba(244,67,54,0.2); border-color: rgba(244,67,54,0.5);
+  }
+
+  .add-ing-btn {
+    width: 100%; padding: 7px; border-radius: 8px;
+    border: 1px dashed rgba(255,255,255,0.13);
+    background: transparent; color: #777; font-size: 0.75rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .add-ing-btn:hover { border-color: rgba(255,255,255,0.3); color: #bbb; }
+
+  .form-actions {
+    display: flex; gap: 10px; margin-top: 18px;
+  }
+  .form-actions button {
+    flex: 1; padding: 10px; border-radius: 12px;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    letter-spacing: 0.5px; transition: all 0.2s;
+  }
+  .cancel-btn {
+    border: 1px solid rgba(255,255,255,0.13);
+    background: rgba(255,255,255,0.04); color: #999;
+  }
+  .cancel-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .submit-btn {
+    border: none; background: linear-gradient(135deg, #FF9800, #F44336);
+    color: #fff;
+  }
+  .submit-btn:hover { opacity: 0.88; transform: scale(1.02); }
+  .submit-btn:active { transform: scale(0.95); }
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div class="hud-top">
+  <h1>🍔 今天吃什么？</h1>
+  <p class="sub">立体探索 · 食材拆解 · 热量劝退</p>
+</div>
+<div class="hint">🖱 拖拽旋转 &nbsp;|&nbsp; 滚轮缩放 &nbsp;|&nbsp; 点击食物</div>
+<div class="legend">
+  <span>高</span>
+  <div class="grad" style="height:80px"></div>
+  <span>低</span>
+</div>
+
+<div class="hud-bottom">
+  <button id="btnRandom">🎡 转一转</button>
+  <button class="btn-devil" id="btnDevil">😈 热量最高</button>
+</div>
+
+<!-- Detail popup -->
+<div class="overlay" id="overlay"></div>
+<div class="detail" id="detail">
+  <button class="close-btn" id="closeBtn">✕</button>
+  <span class="big-emoji" id="dEmoji"></span>
+  <div class="food-name" id="dName"></div>
+  <div class="food-note" id="dNote"></div>
+  <div class="food-kcal"><span id="dKcal"></span><span class="u"> kcal</span></div>
+  <div class="food-exercise" id="dEx"></div>
+  <div class="ingredients" id="dIng" style="display:none"></div>
+  <p class="close-hint">点卡片外 · 点 ✕ · 按 ESC 关闭</p>
+</div>
+
+<!-- Wheel -->
+<div class="wheel-stage" id="wheelStage">
+  <div class="wheel-wrapper">
+    <div class="wheel-pointer"></div>
+    <canvas class="wheel-canvas" id="wheelCanvas" width="1020" height="1020"></canvas>
+    <div class="wheel-center">🎯</div>
+  </div>
+</div>
+<div class="wheel-result" id="wheelResult">
+  <span class="r-emoji" id="rEmoji"></span>
+  <span class="r-name" id="rName"></span>
+</div>
+
+<!-- Add Food Button -->
+<button class="add-btn" id="btnAdd" title="添加食物">➕</button>
+
+<!-- Add Food Modal -->
+<div class="add-overlay" id="addOverlay"></div>
+<div class="add-modal" id="addModal">
+  <h2>➕ 添加食物</h2>
+  <div class="form-group">
+    <label>🍽️ 食物名称</label>
+    <div class="name-search-row">
+      <input type="text" id="addName" placeholder="例：黄焖鸡米饭" maxlength="20">
+      <button class="search-online-btn" id="btnSearchOnline" title="在线搜索食物热量和食材">🔍 搜索</button>
+    </div>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+  <div class="form-group">
+    <label>😋 Emoji</label>
+    <input type="text" id="addEmoji" placeholder="选一个或自己输入" maxlength="4">
+    <div class="emoji-picker" id="emojiPicker">
+      <!-- Filled by JS -->
+    </div>
+  </div>
+  <div class="form-group">
+    <label>🔥 热量 (kcal) <span class="kcal-hint" id="kcalHint"></span></label>
+    <input type="number" id="addKcal" placeholder="输入名称自动计算，也可手动填" min="10" max="3000">
+  </div>
+  <div class="form-group">
+    <label>💬 一句话描述</label>
+    <input type="text" id="addNote" placeholder="例：汤汁浓郁 · 下饭神器" maxlength="30">
+  </div>
+  <div class="form-group">
+    <label>📂 分类</label>
+    <select id="addCategory">
+      <option value="canteen">🏫 食堂</option>
+      <option value="waimai">🍱 外卖</option>
+      <option value="light">🥗 轻食</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>🧩 食材拆解（可选）</label>
+    <div id="addIngredients"></div>
+    <button class="add-ing-btn" id="btnAddIng">+ 添加食材</button>
+  </div>
+  <div class="form-actions">
+    <button class="cancel-btn" id="btnCancelAdd">取消</button>
+    <button class="submit-btn" id="btnSubmitAdd">✨ 确认添加</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ==================== DATA ====================
+const CATEGORIES = [
+  {
+    id: 'canteen', label: '🏫 食堂', color: 0xFFD54F, pos: [0, 1.8, -2.5],
+    items: [
+      { emoji:'🍖', name:'红烧肉盖饭',   kcal:820, note:'肥而不腻 · 下饭神器' },
+      { emoji:'🍗', name:'鸡腿套餐',     kcal:550, note:'一个鸡腿+两个素菜' },
+      { emoji:'🥟', name:'饺子（20个）',  kcal:480, note:'猪肉白菜馅' },
+      { emoji:'🍜', name:'兰州拉面',     kcal:420, note:'牛肉片+香菜' },
+      { emoji:'🥬', name:'麻辣烫（素）',  kcal:350, note:'自选蔬菜，不麻不辣也行' },
+      { emoji:'🍛', name:'咖喱鸡排饭',   kcal:780, note:'炸鸡排警告 ⚠️' },
+      { emoji:'🥗', name:'自选沙拉',     kcal:180, note:'生菜+鸡胸+玉米粒' },
+      { emoji:'🍚', name:'番茄炒蛋盖饭',  kcal:380, note:'素菜之光 ✨' },
+    ]
+  },
+  {
+    id: 'waimai', label: '🍱 外卖', color: 0xFFAB40, pos: [-3.5, -0.5, 1.5],
+    items: [
+      { emoji:'🍕', name:'披萨（中号）',  kcal:960, note:'2-3人份…你确定一个人？',
+        ingredients:[
+          { emoji:'🍞', name:'面饼底', kcal:300 },
+          { emoji:'🧀', name:'芝士', kcal:220 },
+          { emoji:'🍅', name:'番茄酱+配料', kcal:140 },
+          { emoji:'🥓', name:'培根/香肠', kcal:300 },
+        ]},
+      { emoji:'🍔', name:'汉堡薯条可乐',  kcal:850, note:'经典三件套，快乐加倍',
+        ingredients:[
+          { emoji:'🍞', name:'面包胚', kcal:180 },
+          { emoji:'🥩', name:'牛肉饼', kcal:280 },
+          { emoji:'🧀', name:'芝士片', kcal:110 },
+          { emoji:'🥬', name:'生菜+番茄+酱', kcal:50 },
+          { emoji:'🍟', name:'薯条', kcal:160 },
+          { emoji:'🥤', name:'中杯可乐', kcal:70 },
+        ]},
+      { emoji:'🍣', name:'寿司拼盘',     kcal:420, note:'8枚，相对友好' },
+      { emoji:'🥘', name:'麻辣香锅',     kcal:700, note:'油大但香，下饭警告' },
+      { emoji:'🍲', name:'酸菜鱼',       kcal:380, note:'鱼肉+酸菜，高蛋白' },
+      { emoji:'🍝', name:'意面肉酱',     kcal:620, note:'碳水核弹 💣' },
+      { emoji:'🥤', name:'奶茶（大杯）',  kcal:420, note:'正常糖 ≈ 一碗米饭',
+        ingredients:[
+          { emoji:'🍵', name:'茶底', kcal:5 },
+          { emoji:'🥛', name:'牛奶', kcal:120 },
+          { emoji:'🍬', name:'糖浆', kcal:200 },
+          { emoji:'🫧', name:'珍珠/椰果', kcal:95 },
+        ]},
+      { emoji:'🍗', name:'炸鸡半只',     kcal:580, note:'快乐就完事了 🎉' },
+    ]
+  },
+  {
+    id: 'light', label: '🥗 轻食', color: 0x81C784, pos: [3.5, -0.5, 1.5],
+    items: [
+      { emoji:'🥑', name:'鸡胸肉沙拉',   kcal:280, note:'高蛋白低碳水',
+        ingredients:[
+          { emoji:'🍗', name:'鸡胸肉', kcal:140 },
+          { emoji:'🥬', name:'生菜基底', kcal:30 },
+          { emoji:'🥑', name:'牛油果', kcal:80 },
+          { emoji:'🍅', name:'小番茄+酱汁', kcal:30 },
+        ]},
+      { emoji:'🥣', name:'燕麦酸奶碗',   kcal:310, note:'燕麦+酸奶+蓝莓' },
+      { emoji:'🍠', name:'蒸紫薯+鸡蛋',  kcal:220, note:'朴实无华，顶饱' },
+      { emoji:'🌯', name:'全麦卷饼',     kcal:340, note:'鸡肉+蔬菜' },
+      { emoji:'🍣', name:'三文鱼刺身',   kcal:180, note:'纯蛋白质，无碳水' },
+      { emoji:'🥒', name:'凉拌黄瓜豆腐',  kcal:120, note:'食堂隐藏款 👀' },
+    ]
+  }
+];
+
+// ==================== COLOR UTILS ====================
+function kcalColor(kcal) {
+  const t = Math.max(0, Math.min(1, (kcal - 100) / 900));
+  const h = 50 - t * 50;
+  const s = 0.85 + t * 0.15;
+  const l = 0.55 - t * 0.18;
+  const c = new THREE.Color();
+  c.setHSL(h / 360, s, l);
+  return c;
+}
+
+// ==================== THREE.JS SETUP ====================
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0a1a, 0.00015);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 80);
+camera.position.set(0, 0.5, 8);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+// Lights
+const ambientLight = new THREE.AmbientLight(0x222244, 1.5);
+scene.add(ambientLight);
+const pointLight1 = new THREE.PointLight(0xff9944, 30, 20);
+pointLight1.position.set(5, 5, 5);
+scene.add(pointLight1);
+const pointLight2 = new THREE.PointLight(0x4466ff, 15, 15);
+pointLight2.position.set(-5, -3, -3);
+scene.add(pointLight2);
+
+// Controls
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 4;
+controls.maxDistance = 16;
+controls.maxPolarAngle = Math.PI * 0.75;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.3;
+controls.target.set(0, 0, 0);
+
+// ==================== NODE GROUPS ====================
+const centerGroup = new THREE.Group();
+const categoryGroups = [];
+const foodNodeData = []; // { mesh, group, item, catId, basePos }
+scene.add(centerGroup);
+
+// ==================== CREATE CENTER NODE ====================
+function createCenterNode() {
+  const geo = new THREE.SphereGeometry(0.5, 64, 64);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xFF9800,
+    roughness: 0.2,
+    metalness: 0.05,
+    emissive: 0xFF6600,
+    emissiveIntensity: 0.5,
+  });
+  const sphere = new THREE.Mesh(geo, mat);
+  sphere.name = 'centerSphere';
+  centerGroup.add(sphere);
+
+  // Soft glow ring (thin, always behind text)
+  const glowRingGeo = new THREE.TorusGeometry(0.62, 0.015, 16, 80);
+  const glowRingMat = new THREE.MeshBasicMaterial({
+    color: 0xFF9800,
+    transparent: true,
+    opacity: 0.35,
+    depthTest: true,
+  });
+  const glowRing = new THREE.Mesh(glowRingGeo, glowRingMat);
+  glowRing.rotation.x = Math.PI / 2;
+  glowRing.name = 'glowRing';
+  centerGroup.add(glowRing);
+
+  // Outer particles ring (tiny dots in a circle)
+  const dotsCount = 40;
+  const dotsGeo = new THREE.BufferGeometry();
+  const dotsPos = new Float32Array(dotsCount * 3);
+  for (let i = 0; i < dotsCount; i++) {
+    const angle = (i / dotsCount) * Math.PI * 2;
+    dotsPos[i * 3] = Math.cos(angle) * 0.68;
+    dotsPos[i * 3 + 1] = Math.sin(angle) * 0.68;
+    dotsPos[i * 3 + 2] = 0;
+  }
+  dotsGeo.setAttribute('position', new THREE.BufferAttribute(dotsPos, 3));
+  const dotsMat = new THREE.PointsMaterial({
+    color: 0xFFAA44,
+    size: 0.03,
+    transparent: true,
+    opacity: 0.5,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const dots = new THREE.Points(dotsGeo, dotsMat);
+  dots.name = 'dots';
+  centerGroup.add(dots);
+
+  // Food text sprite (always on top)
+  const sprite = createCenterTextSprite('食物', 1.5);
+  sprite.position.z = 0.03;
+  sprite.renderOrder = 999;
+  sprite.name = 'textSprite';
+  centerGroup.add(sprite);
+}
+
+function createCenterTextSprite(text, scale = 1) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 80px "PingFang SC","Microsoft YaHei","STHeiti",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 128);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scale, scale, 1);
+  return sprite;
+}
+
+function createEmojiSprite(emoji, scale = 1) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.font = '80px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 64, 64);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scale, scale, 1);
+  sprite.renderOrder = 1;
+  return sprite;
+}
+
+// ==================== CREATE CATEGORY NODES ====================
+function createCategoryNode(cat) {
+  const group = new THREE.Group();
+  group.position.set(...cat.pos);
+
+  const geo = new THREE.SphereGeometry(0.4, 48, 48);
+  const mat = new THREE.MeshStandardMaterial({
+    color: cat.color,
+    roughness: 0.2,
+    metalness: 0.05,
+    emissive: cat.color,
+    emissiveIntensity: 0.35,
+  });
+  const sphere = new THREE.Mesh(geo, mat);
+  group.add(sphere);
+
+  // Glow
+  const glowGeo = new THREE.SphereGeometry(0.55, 32, 32);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: cat.color,
+    transparent: true,
+    opacity: 0.12,
+    depthTest: false,
+  });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  group.add(glow);
+
+  // Label sprite
+  const sprite = createTextSprite(cat.label, 1.2);
+  sprite.position.set(0, 0.75, 0);
+  group.add(sprite);
+
+  scene.add(group);
+  categoryGroups.push({ group, cat });
+  return group;
+}
+
+function createTextSprite(text, scale = 1) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold 28px "PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, 128, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scale, scale * 0.25, 1);
+  return sprite;
+}
+
+// ==================== CREATE FOOD NODES ====================
+function createFoodNode(item, catGroup, catPos, index, total) {
+  const group = new THREE.Group();
+
+  // Sphere size based on kcal (must compute first for collision check)
+  const size = 0.18 + (item.kcal / 1000) * 0.32;
+
+  // Find non-overlapping position: at least 2× radius from any existing food node
+  let basePos;
+  let placed = false;
+  const maxAttempts = 80;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const phi = Math.acos(2 * Math.random() - 1);
+    const theta = Math.random() * Math.PI * 2;
+    const r = 1.8 + Math.random() * 3.0;
+    const candidate = new THREE.Vector3(
+      catPos[0] + Math.sin(phi) * Math.cos(theta) * r,
+      catPos[1] + Math.sin(phi) * Math.sin(theta) * r,
+      catPos[2] + Math.cos(phi) * r
+    );
+
+    // Clamp within reasonable bounds
+    if (candidate.length() > 9) continue;
+
+    let valid = true;
+    for (const fd of foodNodeData) {
+      const minDist = (size + fd.size) * 2;
+      if (candidate.distanceTo(fd.basePos) < minDist) {
+        valid = false;
+        break;
+      }
+    }
+    if (valid) {
+      basePos = candidate;
+      placed = true;
+      break;
+    }
+  }
+
+  // Fallback: wide scatter if no good spot found
+  if (!placed) {
+    const phi = Math.acos(2 * Math.random() - 1);
+    const theta = Math.random() * Math.PI * 2;
+    const r = 4.0 + Math.random() * 2.5;
+    basePos = new THREE.Vector3(
+      catPos[0] + Math.sin(phi) * Math.cos(theta) * r,
+      catPos[1] + Math.sin(phi) * Math.sin(theta) * r,
+      catPos[2] + Math.cos(phi) * r
+    );
+  }
+
+  group.position.copy(basePos);
+  const color = kcalColor(item.kcal);
+
+  // Glass-like sphere: low roughness + clearcoat for sharp glossy look
+  const geo = new THREE.SphereGeometry(size, 56, 56);
+  const mat = new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: 0.08,
+    metalness: 0,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.05,
+    emissive: color,
+    emissiveIntensity: 0.2,
+  });
+  const sphere = new THREE.Mesh(geo, mat);
+  group.add(sphere);
+
+  // Tight glass-like glow (subtle, close to surface)
+  const glowGeo = new THREE.SphereGeometry(size * 1.12, 28, 28);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.06,
+    depthTest: false,
+  });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  group.add(glow);
+
+  // Emoji sprite
+  const sprite = createEmojiSprite(item.emoji, size * 1.8);
+  sprite.position.z = size * 0.2;
+  group.add(sprite);
+
+  // Kcal sprite (small, below)
+  const kcalSprite = createKcalSprite(item.kcal, size * 1.4);
+  kcalSprite.position.set(0, -size * 0.9, size * 0.2);
+  group.add(kcalSprite);
+
+  scene.add(group);
+
+  const data = { group, sphere, glow: glow, item, basePos, size, color, hovered: false, flyState: null };
+  foodNodeData.push(data);
+  return data;
+}
+
+function createKcalSprite(kcal, scale = 1) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 48;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold 24px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(kcal + '', 64, 24);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scale, scale * 0.38, 1);
+  sprite.renderOrder = 1;
+  return sprite;
+}
+
+// ==================== CONNECTIONS ====================
+const connectionLines = [];
+
+function createConnection(from, to, colorHex, dashed = false) {
+  const points = [
+    from.clone(),
+    new THREE.Vector3(
+      (from.x + to.x) / 2 + (Math.random() - 0.5) * 0.3,
+      (from.y + to.y) / 2 + (Math.random() - 0.5) * 0.3,
+      (from.z + to.z) / 2 + (Math.random() - 0.5) * 0.3
+    ),
+    to.clone(),
+  ];
+  const curve = new THREE.QuadraticBezierCurve3(points[0], points[1], points[2]);
+  const curvePoints = curve.getPoints(30);
+  const geo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+
+  let mat;
+  if (dashed) {
+    mat = new THREE.LineDashedMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: 0.18,
+      dashSize: 0.5,
+      gapSize: 0.35,
+      depthTest: true,
+    });
+  } else {
+    mat = new THREE.LineBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: 0.15,
+      depthTest: true,
+    });
+  }
+
+  const line = new THREE.Line(geo, mat);
+  if (dashed) line.computeLineDistances();
+  scene.add(line);
+  connectionLines.push(line);
+  return line;
+}
+
+// ==================== PARTICLES ====================
+function createParticles() {
+  const count = 300;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 20;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0x8899cc,
+    size: 0.03,
+    transparent: true,
+    opacity: 0.5,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const particles = new THREE.Points(geo, mat);
+  particles.name = 'particles';
+  scene.add(particles);
+  return particles;
+}
+
+// ==================== BUILD SCENE ====================
+createCenterNode();
+const catGroups = CATEGORIES.map(cat => createCategoryNode(cat));
+
+// Flatten items for food node creation
+CATEGORIES.forEach((cat, ci) => {
+  cat.items.forEach((item, ii) => {
+    createFoodNode(item, catGroups[ci], cat.pos, ii, cat.items.length);
+  });
+});
+
+// Connections: center → categories
+catGroups.forEach((cg, i) => {
+  createConnection(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(...CATEGORIES[i].pos),
+    0xffffff,
+    true
+  );
+});
+
+// Store cat info on food nodes for connections
+CATEGORIES.forEach((cat, ci) => {
+  cat.items.forEach((item, ii) => {
+    const idx = foodNodeData.findIndex(fd => fd.item === item);
+    if (idx >= 0) {
+      foodNodeData[idx].catPos = new THREE.Vector3(...cat.pos);
+      foodNodeData[idx].catId = cat.id;
+    }
+  });
+});
+
+// Now create food connections (category → food, solid)
+foodNodeData.forEach(fd => {
+  if (fd.catPos) {
+    createConnection(fd.catPos, fd.group.position.clone(), fd.color.getHex());
+  }
+});
+
+// Center → all food nodes (dashed, very subtle)
+const centerPos = new THREE.Vector3(0, 0, 0);
+foodNodeData.forEach(fd => {
+  const points = [centerPos.clone(), fd.group.position.clone()];
+  // Slight curve offset for organic feel
+  const mid = new THREE.Vector3(
+    (points[0].x + points[1].x) / 2 + (Math.random() - 0.5) * 0.2,
+    (points[0].y + points[1].y) / 2 + (Math.random() - 0.5) * 0.2,
+    (points[0].z + points[1].z) / 2 + (Math.random() - 0.5) * 0.2
+  );
+  const curve = new THREE.QuadraticBezierCurve3(points[0], mid, points[1]);
+  const curvePoints = curve.getPoints(30);
+  const geo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+  const mat = new THREE.LineDashedMaterial({
+    color: fd.color.getHex(),
+    transparent: true,
+    opacity: 0.07,
+    dashSize: 0.3,
+    gapSize: 0.4,
+    depthTest: true,
+  });
+  const line = new THREE.Line(geo, mat);
+  line.computeLineDistances();
+  scene.add(line);
+  connectionLines.push(line);
+});
+
+const particles = createParticles();
+
+// ==================== RAYCASTER ====================
+const raycaster = new THREE.Raycaster();
+raycaster.params.Points.threshold = 0.4;
+raycaster.params.Line = { threshold: 0.2 };
+const mouse = new THREE.Vector2();
+let hoveredData = null;
+let selectedData = null;
+
+function getIntersections(event) {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  // Use glow mesh (larger) for easier clicking
+  const targets = foodNodeData.map(fd => fd.glow);
+  return raycaster.intersectObjects(targets, false);
+}
+
+function findFoodByGlow(glowMesh) {
+  return foodNodeData.find(fd => fd.glow === glowMesh);
+}
+
+function onPointerMove(event) {
+  const intersects = getIntersections(event);
+
+  // Reset previous hover
+  if (hoveredData && (!intersects.length || intersects[0].object !== hoveredData.glow)) {
+    hoveredData.hovered = false;
+    hoveredData.sphere.material.emissiveIntensity = 0.2;
+    hoveredData.glow.material.opacity = 0.06;
+    hoveredData.group.scale.set(1, 1, 1);
+    hoveredData = null;
+    document.body.style.cursor = 'default';
+  }
+
+  if (intersects.length) {
+    const data = findFoodByGlow(intersects[0].object);
+    if (data && data !== hoveredData) {
+      hoveredData = data;
+      data.hovered = true;
+      data.sphere.material.emissiveIntensity = 1.2;
+      data.glow.material.opacity = 0.35;
+      data.group.scale.set(1.2, 1.2, 1.2);
+      document.body.style.cursor = 'pointer';
+    }
+  }
+}
+
+function onClick(event) {
+  // Ignore clicks on UI elements
+  if (event.target.tagName === 'BUTTON') return;
+
+  const intersects = getIntersections(event);
+  if (intersects.length) {
+    const data = findFoodByGlow(intersects[0].object);
+    if (data) {
+      selectFood(data);
+    }
+  } else {
+    deselectFood();
+  }
+}
+
+// ==================== DETAIL POPUP ====================
+function showDetailCard(data) {
+  const item = data.item;
+  document.getElementById('dEmoji').textContent = item.emoji;
+  document.getElementById('dName').textContent = item.name;
+  document.getElementById('dNote').textContent = item.note;
+  document.getElementById('dKcal').textContent = item.kcal;
+  document.getElementById('dKcal').style.color = '#' + data.color.getHexString();
+  document.getElementById('dEx').textContent = exerciseText(item.kcal);
+
+  // Ingredients
+  const ingDiv = document.getElementById('dIng');
+  if (item.ingredients && item.ingredients.length) {
+    const maxKcal = Math.max(...item.ingredients.map(i => i.kcal));
+    const totalKcal = item.ingredients.reduce((s, i) => s + i.kcal, 0);
+    ingDiv.style.display = 'block';
+    ingDiv.innerHTML = `
+      <div class="ing-title">🔍 食材拆解 · 合计 ${totalKcal} kcal</div>
+      <!-- Stacked bar -->
+      <div class="ing-stacked">
+        ${item.ingredients.map(ing => {
+          const pct = (ing.kcal / totalKcal) * 100;
+          return `<div class="ing-seg" style="flex:${ing.kcal};background:${'#'+kcalColor(ing.kcal).getHexString()};min-width:4px" title="${ing.name}: ${ing.kcal} kcal"></div>`;
+        }).join('')}
+      </div>
+      <!-- Ingredient rows -->
+      ${item.ingredients.map(ing => {
+        const pct = Math.round((ing.kcal / totalKcal) * 100);
+        const barPct = Math.round((ing.kcal / maxKcal) * 100);
+        return `
+        <div class="ing-row">
+          <span class="ing-emoji">${ing.emoji}</span>
+          <div class="ing-info">
+            <span class="ing-name">${ing.name}</span>
+            <div class="ing-bar"><div class="ing-bar-fill" style="width:${barPct}%;background:${'#'+kcalColor(ing.kcal).getHexString()}"></div></div>
+          </div>
+          <span class="ing-kcal">${ing.kcal}</span>
+          <span class="ing-pct">${pct}%</span>
+        </div>
+        `;
+      }).join('')}
+    `;
+  } else {
+    ingDiv.style.display = 'none';
+  }
+
+  document.getElementById('detail').classList.add('show');
+  document.getElementById('overlay').classList.add('show');
+}
+
+function hideDetailCard() {
+  document.getElementById('detail').classList.remove('show');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function flyFoodToCamera(data) {
+  data.flyState = 'toCamera';
+  data.flyStart = performance.now();
+  data.flyFrom = data.group.position.clone();
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  data.flyTarget = camera.position.clone().add(dir.multiplyScalar(3.5));
+  data.flyDuration = 800;
+  data.sphere.material.emissiveIntensity = 1.5;
+  data.glow.material.opacity = 0.5;
+  controls.autoRotate = false;
+}
+
+function returnFoodToBase(data) {
+  data.flyState = 'toBase';
+  data.flyStart = performance.now();
+  data.flyFrom = data.group.position.clone();
+  data.flyTarget = data.basePos.clone();
+  data.flyDuration = 1200;
+}
+
+function selectFood(data) {
+  // Clean up previous selection
+  if (selectedData && selectedData !== data) {
+    returnFoodToBase(selectedData);
+  }
+  hideDetailCard();
+  selectedData = data;
+
+  // Fly food to camera first
+  flyFoodToCamera(data);
+
+  // Show detail card after 0.5s delay
+  const target = data;
+  setTimeout(() => {
+    if (selectedData === target) {
+      showDetailCard(target);
+    }
+  }, 500);
+}
+
+function deselectFood() {
+  const wasSelected = selectedData;
+  hideDetailCard();
+
+  if (wasSelected) {
+    // If food is presenting at camera, send it back to base
+    if (wasSelected.flyState === 'hold' || wasSelected.flyState === 'toCamera') {
+      returnFoodToBase(wasSelected);
+    }
+    selectedData = null;
+  }
+}
+
+document.getElementById('overlay').addEventListener('click', deselectFood);
+document.getElementById('closeBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  deselectFood();
+});
+// Click on detail card background also closes (but not its children)
+document.getElementById('detail').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('detail')) {
+    deselectFood();
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') deselectFood(); });
+
+function exerciseText(kcal) {
+  if (kcal <= 200) return '🚶 散步 25 分钟就能消耗';
+  if (kcal <= 400) return '🏃 跑步 30 分钟能消耗';
+  if (kcal <= 600) return '🏃 跑步 45 分钟才能消耗';
+  if (kcal <= 800) return '🚴 骑车 1 小时才能消耗';
+  return '🏊 游泳 1 小时 + 明天少吃一顿';
+}
+
+// ==================== WHEEL ====================
+let wheelAnimId = null;
+let wheelActive = false;
+let ALL_FOODS = CATEGORIES.flatMap(cat => cat.items.map(item => Object.assign(item, { catColor: cat.color })));
+
+function drawWheel() {
+  const canvas = document.getElementById('wheelCanvas');
+  const ctx = canvas.getContext('2d');
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const r = 480;
+  const N = ALL_FOODS.length;
+  const arc = (2 * Math.PI) / N;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Segments
+  ALL_FOODS.forEach((food, i) => {
+    const startAngle = i * arc - Math.PI / 2;
+    const endAngle = startAngle + arc;
+
+    // Segment fill
+    const col = kcalColor(food.kcal);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fillStyle = `hsl(${col.h},${col.s * 100}%,${col.l * 100}%)`;
+    ctx.fill();
+
+    // Segment border
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Emoji + Name (150% font sizes)
+    const midAngle = startAngle + arc / 2;
+    const textR = r * 0.7;
+    const tx = cx + Math.cos(midAngle) * textR;
+    const ty = cy + Math.sin(midAngle) * textR;
+
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(midAngle + Math.PI / 2);
+    ctx.font = '30px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(food.emoji, 0, -18);
+    ctx.font = 'bold 16px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(food.name.length > 5 ? food.name.slice(0,5)+'…' : food.name, 0, 16);
+    ctx.restore();
+  });
+
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 6, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  // Tick marks on outer ring
+  for (let i = 0; i < N; i++) {
+    const angle = i * arc - Math.PI / 2;
+    const innerR = r + 9;
+    const outerR = r + 21;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+}
+
+function spinWheel(callback) {
+  if (wheelActive) return;
+  wheelActive = true;
+
+  const stage = document.getElementById('wheelStage');
+  const canvas = document.getElementById('wheelCanvas');
+  const result = document.getElementById('wheelResult');
+
+  // Draw wheel
+  drawWheel();
+
+  // Hide previous result
+  result.classList.remove('show');
+
+  // Show wheel
+  stage.classList.add('active');
+  stage.style.pointerEvents = 'auto';
+
+  // Random target: pick a food item, then calculate its segment angle
+  const pickIndex = Math.floor(Math.random() * ALL_FOODS.length);
+  const N = ALL_FOODS.length;
+  const arc = (2 * Math.PI) / N;
+  // Target: the MIDDLE of the chosen segment, aligned with the pointer (top = -PI/2 = 3PI/2)
+  const segmentMid = pickIndex * arc - Math.PI / 2 + arc / 2;
+  // Add several full rotations (random 3-6 full turns) + offset to land on segment
+  const fullSpins = (Math.floor(Math.random() * 4) + 3) * Math.PI * 2;
+  const targetAngle = fullSpins + (2 * Math.PI - (segmentMid % (2 * Math.PI)));
+
+  // Animation state
+  const startTime = performance.now();
+  const duration = 2000; // 2 seconds
+  const startAngle = parseFloat(canvas.style.transform?.match(/rotate\(([^)]+)rad\)/)?.[1]) || 0;
+  // Initial angular velocity ~18-25 rad/s (fast spin)
+  const initSpeed = 18 + Math.random() * 8;
+
+  function spin(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+
+    // Ease-out cubic: fast at start, decelerating to stop
+    const ease = 1 - Math.pow(1 - t, 3);
+
+    // Current angle: start + total rotation * ease progress
+    const currentAngle = startAngle + targetAngle * ease;
+
+    // Instantaneous angular speed (for motion blur)
+    const speed = targetAngle * 3 * Math.pow(1 - t, 2) / duration * 1000; // rad/s approx
+
+    // Apply rotation
+    canvas.style.transform = `rotate(${currentAngle}rad)`;
+
+    // Motion blur: proportional to speed
+    const blur = Math.min(speed * 0.35, 6);
+    canvas.style.filter = t < 0.95 ? `blur(${blur.toFixed(1)}px)` : 'blur(0px)';
+
+    if (t < 1) {
+      wheelAnimId = requestAnimationFrame(spin);
+    } else {
+      // Stopped
+      canvas.style.filter = 'blur(0px)';
+      stage.classList.remove('active');
+      stage.style.pointerEvents = 'none';
+      wheelActive = false;
+      callback(ALL_FOODS[pickIndex]);
+    }
+  }
+
+  wheelAnimId = requestAnimationFrame(spin);
+}
+
+function showWheelResult(item) {
+  const result = document.getElementById('wheelResult');
+  document.getElementById('rEmoji').textContent = item.emoji;
+  document.getElementById('rName').textContent = item.name;
+  result.classList.add('show');
+  setTimeout(() => result.classList.remove('show'), 2000);
+}
+
+// ==================== BUTTONS ====================
+document.getElementById('btnRandom').addEventListener('click', () => {
+  deselectFood();
+  // Cancel any fly animation on all nodes
+  foodNodeData.forEach(fd => {
+    if (fd.flyState) {
+      fd.flyState = null;
+      fd.group.scale.set(1, 1, 1);
+      fd.group.position.copy(fd.basePos);
+      fd.group.rotation.set(0, 0, 0);
+    }
+  });
+  if (wheelAnimId) { cancelAnimationFrame(wheelAnimId); wheelAnimId = null; }
+  wheelActive = false;
+  controls.autoRotate = true;
+
+  spinWheel((pickedFood) => {
+    showWheelResult(pickedFood);
+    const match = foodNodeData.find(fd => fd.item === pickedFood);
+    if (match) selectFood(match);
+  });
+});
+
+document.getElementById('btnDevil').addEventListener('click', () => {
+  deselectFood();
+  // Cancel any active fly animation
+  foodNodeData.forEach(fd => {
+    if (fd.flyState) {
+      fd.flyState = null;
+      fd.group.scale.set(1, 1, 1);
+      fd.group.position.copy(fd.basePos);
+      fd.group.rotation.set(0, 0, 0);
+    }
+  });
+  controls.autoRotate = true;
+
+  const pick = foodNodeData.reduce((a, b) => a.item.kcal > b.item.kcal ? a : b);
+  selectFood(pick);
+});
+
+// ==================== ADD FOOD ====================
+const FOOD_EMOJIS = '🍖🍗🥟🍜🥬🍛🥗🍚🍕🍔🍣🥘🍲🍝🥤🥑🥣🍠🌯🍳🥩🧆🥙🫕🍱🍙🍤🍦🍰🧁🍪🍩🍿🥜🌮🌭🧋🍵☕🦪🍘🍥🧈🍞🥖';
+
+(function initEmojiPicker() {
+  const picker = document.getElementById('emojiPicker');
+  const input = document.getElementById('addEmoji');
+  [...new Set([...FOOD_EMOJIS])].forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.textContent = emoji;
+    btn.addEventListener('click', () => { input.value = emoji; });
+    picker.appendChild(btn);
+  });
+})();
+
+// ==================== FOOD KCAL DATABASE ====================
+// Build lookup from existing items + supplementary database
+function buildKcalDB() {
+  const db = new Map();
+  // Include existing food items from CATEGORIES
+  CATEGORIES.forEach(cat => cat.items.forEach(item => {
+    db.set(item.name, item.kcal);
+  }));
+  // Supplementary: common Chinese dishes (approx kcal per serving)
+  const extra = {
+    // === 米饭/盖饭类 ===
+    '黄焖鸡米饭': 650, '宫保鸡丁盖饭': 580, '鱼香肉丝盖饭': 550, '糖醋里脊盖饭': 620,
+    '回锅肉盖饭': 700, '木须肉盖饭': 480, '地三鲜盖饭': 420, '麻婆豆腐盖饭': 380,
+    '土豆牛肉盖饭': 580, '蒜苔肉丝盖饭': 460, '青椒肉丝盖饭': 440, '京酱肉丝盖饭': 520,
+    '照烧鸡腿饭': 560, '叉烧饭': 600, '卤肉饭': 650, '猪脚饭': 720,
+    '蛋炒饭': 450, '扬州炒饭': 520, '牛肉炒饭': 580, '虾仁炒饭': 480,
+    '白米饭': 200, '馒头': 220, '花卷': 250, '油条': 270,
+    // === 面/粉类 ===
+    '牛肉面': 480, '炸酱面': 520, '担担面': 550, '热干面': 500, '葱油拌面': 420,
+    '重庆小面': 450, '酸辣粉': 380, '螺蛳粉': 550, '过桥米线': 420,
+    '炒面': 500, '炒河粉': 520, '干炒牛河': 600, '炒米粉': 470,
+    '凉皮': 350, '凉面': 380, '冷面': 360, 'biangbiang面': 540,
+    '刀削面': 460, '阳春面': 280, '馄饨面': 380,
+    // === 肉类主菜 ===
+    '红烧排骨': 550, '红烧牛肉': 480, '红烧鱼': 380, '红烧带鱼': 350,
+    '糖醋排骨': 600, '糖醋鱼': 420, '清蒸鱼': 250, '水煮鱼': 450,
+    '酸菜鱼': 380, '烤鱼': 520, '麻辣烤鱼': 600,
+    '锅包肉': 580, '溜肉段': 520, '京酱肉丝': 480,
+    '辣子鸡': 550, '口水鸡': 480, '白切鸡': 350, '豉油鸡': 400,
+    '烤鸭': 650, '烧鹅': 700, '酱牛肉': 350,
+    '红烧狮子头': 550, '梅菜扣肉': 680, '粉蒸肉': 620,
+    '羊肉串（10串）': 450, '烤羊排': 680, '涮羊肉': 500,
+    // === 小炒/家常菜 ===
+    '番茄炒蛋': 280, '青椒炒肉': 350, '蒜蓉西兰花': 120, '干煸四季豆': 250,
+    '醋溜白菜': 100, '酸辣土豆丝': 200, '家常豆腐': 320, '麻婆豆腐': 350,
+    '鱼香茄子': 320, '红烧茄子': 300, '地三鲜': 350,
+    '韭菜炒蛋': 220, '洋葱炒蛋': 200, '苦瓜炒蛋': 180,
+    '炒青菜': 80, '清炒时蔬': 90, '蚝油生菜': 70,
+    // === 汤/煲类 ===
+    '酸辣汤': 150, '紫菜蛋花汤': 80, '番茄蛋汤': 100, '排骨汤': 250,
+    '鸡汤': 200, '老鸭汤': 300, '牛肉汤': 220, '羊肉汤': 280,
+    '砂锅豆腐': 350, '砂锅排骨': 480, '砂锅鸡': 420,
+    // === 快餐 ===
+    '汉堡': 550, '芝士汉堡': 600, '双层汉堡': 750, '鸡肉汉堡': 500,
+    '薯条（中份）': 350, '炸鸡翅（6个）': 450, '炸鸡腿': 300, '鸡米花': 400,
+    '披萨（2片）': 500, '热狗': 350, '三明治': 380,
+    '炸鸡排': 420, '鸡排': 420, '盐酥鸡': 380, '炸鱿鱼': 320,
+    // === 饺子/包子/点心 ===
+    '饺子（15个）': 420, '猪肉白菜饺子': 450, '韭菜鸡蛋饺子': 380,
+    '馄饨': 300, '抄手': 320, '红油抄手': 380,
+    '小笼包（8个）': 380, '肉包子（2个）': 350, '菜包子（2个）': 200,
+    '生煎（6个）': 420, '锅贴（10个）': 450,
+    '烧卖（6个）': 320, '虾饺（6个）': 200, '肠粉': 250,
+    // === 火锅/麻辣烫 ===
+    '麻辣烫': 500, '麻辣香锅': 700, '火锅（人均）': 800,
+    '冒菜': 550, '串串香': 600, '钵钵鸡': 450,
+    // === 日韩 ===
+    '寿司（8枚）': 380, '刺身拼盘': 250, '鳗鱼饭': 550, '天妇罗': 450,
+    '拉面': 500, '乌冬面': 380, '章鱼小丸子（6个）': 300,
+    '石锅拌饭': 580, '韩式炸鸡': 650, '炒年糕': 400, '部队锅': 700,
+    '烤肉（人均）': 650, '参鸡汤': 380,
+    // === 轻食/沙拉 ===
+    '凯撒沙拉': 320, '田园沙拉': 180, '鸡胸肉沙拉': 280, '金枪鱼沙拉': 300,
+    '牛油果沙拉': 350, '水果沙拉': 200,
+    '全麦三明治': 320, '鸡肉卷': 380, '蔬菜卷': 250,
+    '酸奶碗': 280, '燕麦碗': 310, '隔夜燕麦': 350,
+    '水煮蛋（2个）': 140, '蒸蛋': 100,
+    // === 饮品 ===
+    '珍珠奶茶': 420, '椰果奶茶': 400, '红豆奶茶': 380, '奶盖茶': 350,
+    '水果茶': 200, '柠檬茶': 150, '气泡水': 80,
+    '拿铁': 180, '摩卡': 280, '卡布奇诺': 150, '美式咖啡': 15,
+    '可乐（中杯）': 200, '雪碧': 190, '橙汁': 160, '豆浆': 120,
+    // === 小吃/零食 ===
+    '煎饼果子': 350, '手抓饼': 400, '烤冷面': 380, '鸡蛋灌饼': 350,
+    '肉夹馍': 380, '凉皮卷': 320, '饭团': 280, '紫菜包饭': 320,
+    '茶叶蛋（2个）': 140, '卤蛋': 80, '豆干': 120,
+    '炸鸡柳': 350, '炸薯条': 350, '爆米花': 280,
+    '冰淇淋（单球）': 200, '蛋糕（1块）': 350, '巧克力': 250,
+    // === 面包/早餐 ===
+    '吐司（2片）': 180, '牛角包': 250, '法棍': 200, '贝果': 280,
+    '包子': 200, '豆沙包': 230, '奶黄包': 220,
+    '煎饼': 300, '鸡蛋饼': 280, '葱油饼': 320,
+    '小米粥': 120, '皮蛋瘦肉粥': 250, '八宝粥': 280, '南瓜粥': 150,
+    // === 西餐 ===
+    '牛排': 550, '意面': 500, '肉酱意面': 620, '奶油培根意面': 680,
+    '披萨': 600, '烤鸡': 480, '煎三文鱼': 350, '焗饭': 580,
+    '罗宋汤': 280, '玉米浓汤': 220, '蘑菇汤': 180, '凯撒沙拉': 320,
+    '烤翅': 350, '薯角': 300, '洋葱圈': 280, '芝士通心粉': 520,
+    // === 海鲜类 ===
+    '清蒸鲈鱼': 280, '红烧带鱼': 350, '椒盐虾': 380, '葱姜炒蟹': 420,
+    '蒜蓉粉丝蒸扇贝': 320, '白灼虾': 250, '清蒸大闸蟹': 300, '干烧鱼': 400,
+    '水煮鱼片': 420, '酸菜鱼片': 350, '烤秋刀鱼': 280, '鳕鱼堡': 450,
+    '三文鱼刺身（10片）': 200, '金枪鱼刺身': 180, '甜虾刺身': 120, '海胆': 160,
+    '花甲粉': 420, '炒花甲': 300, '蛏子': 250, '生蚝（6个）': 280,
+    // === 豆腐/豆制品 ===
+    '红烧豆腐': 280, '锅塌豆腐': 320, '皮蛋豆腐': 180, '小葱拌豆腐': 150,
+    '铁板豆腐': 350, '臭豆腐（6块）': 300, '腐竹炒肉': 350, '素鸡': 200,
+    '豆皮卷': 250, '毛豆': 180,
+    // === 凉菜/冷盘 ===
+    '拍黄瓜': 60, '凉拌木耳': 100, '凉拌海带丝': 80, '口水鸡': 420,
+    '夫妻肺片': 380, '蒜泥白肉': 450, '酱牛肉（冷盘）': 300, '皮冻': 150,
+    '凉拌三丝': 120, '老虎菜': 80, '糖拌番茄': 90, '凉拌藕片': 110,
+    // === 砂锅/干锅/煲 ===
+    '干锅花菜': 380, '干锅土豆片': 420, '干锅牛蛙': 500, '干锅肥肠': 600,
+    '干锅千页豆腐': 400, '砂锅米线': 450, '砂锅粥': 350, '煲仔饭': 650,
+    '黄焖鸡': 580, '鸡公煲': 650, '牛肉煲': 520, '茄子煲': 380,
+    // === 港式/茶餐厅 ===
+    '菠萝包': 280, '蛋挞（2个）': 220, '叉烧包（3个）': 350, '流沙包': 250,
+    '虾饺（4个）': 180, '烧卖（4个）': 220, '凤爪': 280, '豉汁排骨': 350,
+    '丝袜奶茶': 250, '鸳鸯': 200, '冻柠茶': 160, '杨枝甘露': 280,
+    '西多士': 420, '菠萝油': 380, '猪扒包': 500, '云吞面': 380,
+    // === 东南亚 ===
+    '冬阴功汤': 280, '泰式炒河粉': 480, '芒果糯米饭': 350, '绿咖喱鸡': 420,
+    '越南河粉': 380, '越南春卷（6个）': 300, '印尼炒饭': 520, '沙爹肉串（10串）': 450,
+    '咖喱蟹': 550, '肉骨茶': 420, '海南鸡饭': 550, '叻沙': 500,
+    // === 川菜 ===
+    '水煮牛肉': 550, '回锅肉': 580, '鱼香肉丝': 480, '宫保鸡丁': 520,
+    '毛血旺': 650, '水煮肉片': 550, '辣子鸡丁': 500, '东坡肉': 720,
+    '蒜泥白肉（热）': 480, '粉蒸排骨': 520, '咸烧白': 680, '甜烧白': 720,
+    // === 湘菜 ===
+    '剁椒鱼头': 450, '辣椒炒肉': 420, '外婆菜': 350, '攸县香干': 320,
+    '腊肉炒蒜苔': 450, '擂辣椒皮蛋': 250, '东安鸡': 480, '血鸭': 420,
+    // === 粤菜 ===
+    '白切鸡': 380, '烧鹅': 650, '蜜汁叉烧': 480, '清蒸石斑鱼': 300,
+    '白灼菜心': 100, '干炒牛河': 600, '艇仔粥': 220, '及第粥': 250,
+    '虾酱空心菜': 180, '豉椒炒蛤蜊': 300,
+    // === 东北菜 ===
+    '锅包肉（东北）': 580, '溜肉段': 520, '猪肉炖粉条': 620, '小鸡炖蘑菇': 520,
+    '地三鲜（东北）': 380, '酸菜白肉': 550, '酱骨架': 500, '大拉皮': 300,
+    '东北乱炖': 480, '韭菜盒子（3个）': 420, '粘豆包（3个）': 350,
+    // === 西北菜 ===
+    '羊肉泡馍': 650, '油泼面': 520, '臊子面': 480, '蘸水面': 420,
+    '水盆羊肉': 450, '葫芦头': 550, '浆水面': 320, '洋芋擦擦': 350,
+    // === 新疆菜 ===
+    '大盘鸡': 680, '手抓饭': 550, '烤包子（3个）': 380, '馕': 300,
+    '拉条子': 480, '丁丁炒面': 450, '胡辣羊蹄': 420, '椒麻鸡': 400,
+    // === 云南菜 ===
+    '过桥米线': 480, '汽锅鸡': 350, '宣威小炒肉': 450, '黑三剁': 380,
+    '烤乳扇': 280, '饵块': 300, '酸汤鱼': 320,
+    // === 素食/斋菜 ===
+    '素烧鹅': 250, '罗汉斋': 280, '素鲍鱼': 150, '素火腿': 200,
+    '酱爆杏鲍菇': 220, '干煸茶树菇': 250, '松仁玉米': 280, '荷塘小炒': 180,
+    // === 盖饭/套餐补充 ===
+    '香菇滑鸡盖饭': 520, '黑椒牛柳盖饭': 580, '孜然羊肉盖饭': 620, '蚝油牛肉盖饭': 550,
+    '红烧牛腩盖饭': 600, '咖喱牛肉盖饭': 560, '照烧鸡排饭': 520, '蒲烧鳗鱼饭': 580,
+    '滑蛋牛肉饭': 500, '亲子丼': 480, '牛丼': 550, '天丼': 600,
+    // === 面食补充 ===
+    '红烧牛肉面': 520, '番茄牛腩面': 480, '雪菜肉丝面': 380, '三鲜面': 420,
+    '海鲜面': 450, '猪肝面': 380, '大肠面': 500, '葱油面': 350,
+    '打卤面': 420, '焖面': 500, '炒饼': 480, '烩面': 520,
+    '疙瘩汤': 250, '片儿川': 380, '奥灶面': 420, '锅盖面': 400,
+    // === 饼/卷类 ===
+    '手抓饼（加蛋加肠）': 480, '烤冷面（加蛋加肠）': 450, '杂粮煎饼': 380, '鸡蛋灌饼（加肠）': 420,
+    '烧饼夹肉': 480, '肉夹馍（纯瘦）': 420, '菜夹馍': 300, '月亮馍': 350,
+    // === 粥品补充 ===
+    '绿豆粥': 150, '红豆粥': 180, '黑米粥': 200, '薏米粥': 160,
+    '蔬菜粥': 120, '鱼片粥': 250, '虾粥': 280, '蟹粥': 320,
+    // === 早餐 ===
+    '豆浆油条': 350, '豆腐脑': 180, '胡辣汤': 280, '豆汁焦圈': 300,
+    '肠粉（鸡蛋）': 280, '粢饭团': 350, '糯米鸡': 380, '马拉糕': 220,
+    '萝卜糕': 250, '芋头糕': 280,
+    // === 快餐连锁 ===
+    '麦乐鸡（6块）': 280, '巨无霸': 550, '麦辣鸡腿堡': 520, '板烧鸡腿堡': 480,
+    '原味鸡（2块）': 380, '嫩牛五方': 450, '鸡肉卷（老北京）': 420, '蛋挞': 120,
+    '新奥尔良烤翅（2对）': 280, '上校鸡块（6块）': 290,
+    // === 零食/下午茶 ===
+    '泡芙': 280, '提拉米苏': 350, '芝士蛋糕': 380, '慕斯蛋糕': 300,
+    '马卡龙（3个）': 220, '华夫饼': 350, '可丽饼': 320, '鸡蛋仔': 280,
+    '仙草冻': 120, '双皮奶': 220, '姜撞奶': 200,
+    // === 速食/便利店 ===
+    '方便面（1包）': 450, '速冻水饺（15个）': 420, '自热火锅': 700, '即食鸡胸肉': 140,
+    '饭团（便利店）': 250, '三明治（便利店）': 350, '关东煮（6串）': 300, '茶叶蛋': 70,
+    // === 节日食品 ===
+    '月饼（1个）': 420, '粽子（1个）': 300, '汤圆（10个）': 350, '元宵': 350,
+    '青团（2个）': 220, '年糕': 300,
+  };
+  for (const [name, kcal] of Object.entries(extra)) {
+    db.set(name, kcal);
+  }
+  return db;
+}
+
+const FOOD_KCAL_DB = buildKcalDB();
+
+// ==================== INGREDIENTS DATABASE ====================
+function buildIngredientsMap() {
+  const map = new Map();
+  // Include existing items from CATEGORIES that have ingredients
+  CATEGORIES.forEach(cat => cat.items.forEach(item => {
+    if (item.ingredients && item.ingredients.length) {
+      map.set(item.name, item.ingredients);
+    }
+  }));
+  // Supplementary ingredient breakdowns (approx kcal per component, sums to total)
+  const extra = {
+    '黄焖鸡米饭': [
+      { emoji:'🍗', name:'鸡腿肉', kcal:280 }, { emoji:'🍚', name:'米饭', kcal:200 },
+      { emoji:'🍄', name:'香菇+青椒', kcal:50 }, { emoji:'🥘', name:'酱汁+油', kcal:120 },
+    ],
+    '宫保鸡丁盖饭': [
+      { emoji:'🍗', name:'鸡丁', kcal:220 }, { emoji:'🍚', name:'米饭', kcal:200 },
+      { emoji:'🥜', name:'花生米', kcal:80 }, { emoji:'🥒', name:'黄瓜丁', kcal:20 },
+      { emoji:'🌶️', name:'酱汁+辣椒', kcal:60 },
+    ],
+    '鱼香肉丝盖饭': [
+      { emoji:'🥩', name:'猪肉丝', kcal:200 }, { emoji:'🍚', name:'米饭', kcal:200 },
+      { emoji:'🫑', name:'木耳+胡萝卜+青椒', kcal:40 }, { emoji:'🥘', name:'鱼香酱汁+油', kcal:110 },
+    ],
+    '糖醋里脊盖饭': [
+      { emoji:'🥩', name:'猪里脊', kcal:240 }, { emoji:'🍚', name:'米饭', kcal:200 },
+      { emoji:'🥘', name:'糖醋酱汁', kcal:180 },
+    ],
+    '蛋炒饭': [
+      { emoji:'🍚', name:'米饭', kcal:200 }, { emoji:'🥚', name:'鸡蛋（2个）', kcal:140 },
+      { emoji:'🥓', name:'火腿丁', kcal:60 }, { emoji:'🧅', name:'葱花+油', kcal:50 },
+    ],
+    '扬州炒饭': [
+      { emoji:'🍚', name:'米饭', kcal:200 }, { emoji:'🥚', name:'鸡蛋', kcal:140 },
+      { emoji:'🍤', name:'虾仁', kcal:60 }, { emoji:'🥓', name:'火腿丁', kcal:60 },
+      { emoji:'🫘', name:'青豆+玉米', kcal:60 },
+    ],
+    '牛肉面': [
+      { emoji:'🍜', name:'面条', kcal:220 }, { emoji:'🥩', name:'牛肉片', kcal:140 },
+      { emoji:'🥬', name:'青菜', kcal:15 }, { emoji:'🦴', name:'牛骨汤底', kcal:105 },
+    ],
+    '炸酱面': [
+      { emoji:'🍜', name:'面条', kcal:220 }, { emoji:'🥩', name:'肉末炸酱', kcal:200 },
+      { emoji:'🥒', name:'黄瓜丝+豆芽', kcal:30 }, { emoji:'🧅', name:'葱花+油', kcal:70 },
+    ],
+    '兰州拉面': [
+      { emoji:'🍜', name:'拉面', kcal:220 }, { emoji:'🥩', name:'牛肉片', kcal:100 },
+      { emoji:'🌿', name:'香菜+蒜苗', kcal:10 }, { emoji:'🦴', name:'牛骨清汤', kcal:90 },
+    ],
+    '担担面': [
+      { emoji:'🍜', name:'面条', kcal:220 }, { emoji:'🥩', name:'肉末', kcal:140 },
+      { emoji:'🥜', name:'芝麻酱+花生碎', kcal:120 }, { emoji:'🌶️', name:'辣椒油+调料', kcal:70 },
+    ],
+    '螺蛳粉': [
+      { emoji:'🍜', name:'米粉', kcal:200 }, { emoji:'🎋', name:'酸笋', kcal:30 },
+      { emoji:'🥜', name:'腐竹+花生', kcal:120 }, { emoji:'🦪', name:'螺蛳汤底', kcal:200 },
+    ],
+    '酸辣粉': [
+      { emoji:'🍜', name:'红薯粉', kcal:180 }, { emoji:'🥜', name:'花生+黄豆', kcal:90 },
+      { emoji:'🌶️', name:'酸辣汤底', kcal:110 },
+    ],
+    '重庆小面': [
+      { emoji:'🍜', name:'面条', kcal:220 }, { emoji:'🌶️', name:'红油+花椒', kcal:140 },
+      { emoji:'🥬', name:'青菜', kcal:15 }, { emoji:'🧅', name:'葱花+榨菜', kcal:75 },
+    ],
+    '热干面': [
+      { emoji:'🍜', name:'面条', kcal:220 }, { emoji:'🥜', name:'芝麻酱', kcal:160 },
+      { emoji:'🥒', name:'萝卜丁+葱花', kcal:30 }, { emoji:'🥘', name:'酱油+调料', kcal:90 },
+    ],
+    '红烧排骨': [
+      { emoji:'🦴', name:'排骨', kcal:320 }, { emoji:'🥘', name:'酱油+糖+香料', kcal:150 },
+      { emoji:'🥔', name:'土豆', kcal:80 },
+    ],
+    '糖醋排骨': [
+      { emoji:'🦴', name:'排骨', kcal:300 }, { emoji:'🍬', name:'糖+醋+番茄酱', kcal:220 },
+      { emoji:'🧅', name:'葱姜蒜', kcal:30 },
+    ],
+    '红烧肉': [
+      { emoji:'🥩', name:'五花肉', kcal:500 }, { emoji:'🥘', name:'酱油+糖+料酒', kcal:200 },
+      { emoji:'🧅', name:'葱姜+香料', kcal:30 },
+    ],
+    '水煮鱼': [
+      { emoji:'🐟', name:'鱼片', kcal:180 }, { emoji:'🌶️', name:'辣椒+花椒+油', kcal:180 },
+      { emoji:'🥬', name:'豆芽+白菜垫底', kcal:40 },
+    ],
+    '酸菜鱼': [
+      { emoji:'🐟', name:'鱼片', kcal:180 }, { emoji:'🥬', name:'酸菜', kcal:60 },
+      { emoji:'🌶️', name:'辣椒+花椒+油', kcal:100 }, { emoji:'🥘', name:'汤底', kcal:40 },
+    ],
+    '辣子鸡': [
+      { emoji:'🍗', name:'鸡块', kcal:280 }, { emoji:'🌶️', name:'干辣椒+花椒', kcal:50 },
+      { emoji:'🥜', name:'花生米', kcal:70 }, { emoji:'🧄', name:'姜蒜+油', kcal:150 },
+    ],
+    '锅包肉': [
+      { emoji:'🥩', name:'猪里脊', kcal:240 }, { emoji:'🌽', name:'淀粉裹衣', kcal:120 },
+      { emoji:'🍬', name:'糖醋酱汁', kcal:160 }, { emoji:'🥕', name:'胡萝卜丝+姜丝', kcal:60 },
+    ],
+    '番茄炒蛋': [
+      { emoji:'🥚', name:'鸡蛋（3个）', kcal:200 }, { emoji:'🍅', name:'番茄（2个）', kcal:50 },
+      { emoji:'🍬', name:'糖+油', kcal:30 },
+    ],
+    '麻婆豆腐': [
+      { emoji:'🧈', name:'豆腐', kcal:120 }, { emoji:'🥩', name:'肉末', kcal:100 },
+      { emoji:'🌶️', name:'豆瓣酱+花椒+油', kcal:130 },
+    ],
+    '酸辣土豆丝': [
+      { emoji:'🥔', name:'土豆', kcal:110 }, { emoji:'🌶️', name:'干辣椒', kcal:20 },
+      { emoji:'🧄', name:'醋+蒜+油', kcal:70 },
+    ],
+    '地三鲜': [
+      { emoji:'🥔', name:'土豆', kcal:100 }, { emoji:'🍆', name:'茄子', kcal:80 },
+      { emoji:'🫑', name:'青椒', kcal:30 }, { emoji:'🧄', name:'蒜+酱油+油', kcal:140 },
+    ],
+    '干煸四季豆': [
+      { emoji:'🫘', name:'四季豆', kcal:100 }, { emoji:'🥩', name:'肉末', kcal:80 },
+      { emoji:'🌶️', name:'干辣椒+花椒+油', kcal:70 },
+    ],
+    '汉堡': [
+      { emoji:'🍞', name:'面包胚', kcal:180 }, { emoji:'🥩', name:'牛肉饼', kcal:250 },
+      { emoji:'🧀', name:'芝士片', kcal:80 }, { emoji:'🥬', name:'生菜+番茄+酱', kcal:40 },
+    ],
+    '芝士汉堡': [
+      { emoji:'🍞', name:'面包胚', kcal:180 }, { emoji:'🥩', name:'牛肉饼', kcal:250 },
+      { emoji:'🧀', name:'芝士片（双份）', kcal:130 }, { emoji:'🥬', name:'生菜+酱料', kcal:40 },
+    ],
+    '炸鸡排': [
+      { emoji:'🍗', name:'鸡胸肉', kcal:160 }, { emoji:'🍞', name:'面包糠+面粉', kcal:120 },
+      { emoji:'🫗', name:'炸油', kcal:140 },
+    ],
+    '饺子（15个）': [
+      { emoji:'🫓', name:'面皮', kcal:150 }, { emoji:'🥩', name:'猪肉馅', kcal:180 },
+      { emoji:'🥬', name:'白菜', kcal:30 }, { emoji:'🧂', name:'调料+香油', kcal:60 },
+    ],
+    '小笼包（8个）': [
+      { emoji:'🫓', name:'面皮', kcal:130 }, { emoji:'🥩', name:'猪肉馅', kcal:160 },
+      { emoji:'🫗', name:'汤汁冻', kcal:70 }, { emoji:'🧅', name:'姜葱+调料', kcal:20 },
+    ],
+    '馄饨': [
+      { emoji:'🫓', name:'馄饨皮', kcal:100 }, { emoji:'🥩', name:'猪肉馅', kcal:120 },
+      { emoji:'🦴', name:'汤底', kcal:50 }, { emoji:'🌿', name:'紫菜+虾皮+香菜', kcal:30 },
+    ],
+    '肉包子（2个）': [
+      { emoji:'🍞', name:'面皮', kcal:140 }, { emoji:'🥩', name:'猪肉馅', kcal:160 },
+      { emoji:'🧅', name:'葱姜+调料', kcal:50 },
+    ],
+    '生煎（6个）': [
+      { emoji:'🫓', name:'面皮', kcal:140 }, { emoji:'🥩', name:'猪肉馅', kcal:160 },
+      { emoji:'🫗', name:'油煎底+汤汁', kcal:120 },
+    ],
+    '麻辣烫': [
+      { emoji:'🥬', name:'蔬菜（任选）', kcal:60 }, { emoji:'🧈', name:'豆腐+豆制品', kcal:100 },
+      { emoji:'🍖', name:'丸类+肉类', kcal:160 }, { emoji:'🦴', name:'麻辣汤底+油', kcal:180 },
+    ],
+    '麻辣香锅': [
+      { emoji:'🥩', name:'肉类拼配', kcal:250 }, { emoji:'🥬', name:'蔬菜拼配', kcal:80 },
+      { emoji:'🌶️', name:'麻辣底料+油', kcal:250 }, { emoji:'🍚', name:'配米饭', kcal:120 },
+    ],
+    '火锅（人均）': [
+      { emoji:'🥩', name:'牛羊肉卷', kcal:250 }, { emoji:'🧈', name:'豆制品+丸类', kcal:150 },
+      { emoji:'🥬', name:'蔬菜+菌菇', kcal:60 }, { emoji:'🥘', name:'汤底+蘸料+油', kcal:340 },
+    ],
+    '寿司（8枚）': [
+      { emoji:'🍚', name:'醋饭', kcal:160 }, { emoji:'🐟', name:'生鱼片', kcal:120 },
+      { emoji:'🫘', name:'海苔+配菜', kcal:40 }, { emoji:'🥘', name:'酱油+芥末', kcal:30 },
+    ],
+    '石锅拌饭': [
+      { emoji:'🍚', name:'米饭', kcal:200 }, { emoji:'🥩', name:'牛肉', kcal:130 },
+      { emoji:'🥚', name:'煎蛋', kcal:90 }, { emoji:'🥕', name:'蔬菜拼配', kcal:60 },
+      { emoji:'🌶️', name:'辣酱+香油', kcal:100 },
+    ],
+    '部队锅': [
+      { emoji:'🍖', name:'火腿+香肠+午餐肉', kcal:280 }, { emoji:'🍜', name:'拉面', kcal:180 },
+      { emoji:'🧀', name:'芝士', kcal:80 }, { emoji:'🥬', name:'蔬菜+年糕+汤底', kcal:160 },
+    ],
+    '韩式炸鸡': [
+      { emoji:'🍗', name:'鸡肉', kcal:260 }, { emoji:'🍞', name:'裹粉+炸油', kcal:200 },
+      { emoji:'🌶️', name:'甜辣酱', kcal:190 },
+    ],
+    '珍珠奶茶': [
+      { emoji:'🍵', name:'茶底', kcal:5 }, { emoji:'🥛', name:'牛奶', kcal:120 },
+      { emoji:'🍬', name:'糖浆', kcal:200 }, { emoji:'🫧', name:'珍珠', kcal:95 },
+    ],
+    '煎饼果子': [
+      { emoji:'🫓', name:'面糊饼皮', kcal:120 }, { emoji:'🥚', name:'鸡蛋', kcal:90 },
+      { emoji:'🫘', name:'油条/薄脆', kcal:100 }, { emoji:'🧅', name:'甜面酱+葱花', kcal:40 },
+    ],
+    '肉夹馍': [
+      { emoji:'🍞', name:'白吉馍', kcal:150 }, { emoji:'🥩', name:'卤肉', kcal:180 },
+      { emoji:'🧅', name:'青椒+香菜+卤汁', kcal:50 },
+    ],
+    '手抓饼': [
+      { emoji:'🫓', name:'饼皮', kcal:180 }, { emoji:'🥚', name:'鸡蛋', kcal:90 },
+      { emoji:'🥓', name:'火腿/培根', kcal:80 }, { emoji:'🥘', name:'酱料+油', kcal:50 },
+    ],
+    '牛排': [
+      { emoji:'🥩', name:'牛肉', kcal:330 }, { emoji:'🧈', name:'黄油+黑椒汁', kcal:150 },
+      { emoji:'🥦', name:'配菜（西兰花+薯条）', kcal:70 },
+    ],
+    '肉酱意面': [
+      { emoji:'🍝', name:'意面', kcal:220 }, { emoji:'🥩', name:'肉酱', kcal:220 },
+      { emoji:'🍅', name:'番茄酱+芝士', kcal:180 },
+    ],
+    '披萨': [
+      { emoji:'🍞', name:'面饼底', kcal:250 }, { emoji:'🧀', name:'芝士', kcal:200 },
+      { emoji:'🍅', name:'番茄酱+配料', kcal:100 }, { emoji:'🥓', name:'培根/香肠', kcal:50 },
+    ],
+    '凯撒沙拉': [
+      { emoji:'🥬', name:'罗马生菜', kcal:30 }, { emoji:'🍗', name:'鸡胸肉', kcal:120 },
+      { emoji:'🍞', name:'面包丁', kcal:60 }, { emoji:'🧀', name:'帕玛森芝士+凯撒酱', kcal:110 },
+    ],
+    '隔夜燕麦': [
+      { emoji:'🥣', name:'燕麦片', kcal:150 }, { emoji:'🥛', name:'牛奶/酸奶', kcal:80 },
+      { emoji:'🍌', name:'香蕉+莓果', kcal:70 }, { emoji:'🥜', name:'坚果+蜂蜜', kcal:50 },
+    ],
+    '皮蛋瘦肉粥': [
+      { emoji:'🍚', name:'米粥', kcal:100 }, { emoji:'🥚', name:'皮蛋', kcal:70 },
+      { emoji:'🥩', name:'瘦肉丝', kcal:60 }, { emoji:'🧅', name:'姜丝+葱花', kcal:20 },
+    ],
+    '小笼包': [
+      { emoji:'🫓', name:'面皮', kcal:130 }, { emoji:'🥩', name:'猪肉馅', kcal:160 },
+      { emoji:'🫗', name:'汤汁冻', kcal:70 }, { emoji:'🧅', name:'姜葱+调料', kcal:20 },
+    ],
+    // === 新增：海鲜类 ===
+    '清蒸鲈鱼': [
+      { emoji:'🐟', name:'鲈鱼', kcal:180 }, { emoji:'🧅', name:'葱姜丝', kcal:10 },
+      { emoji:'🥘', name:'蒸鱼豉油+油', kcal:90 },
+    ],
+    '蒜蓉粉丝蒸扇贝': [
+      { emoji:'🦪', name:'扇贝（6个）', kcal:120 }, { emoji:'🍝', name:'粉丝', kcal:80 },
+      { emoji:'🧄', name:'蒜蓉+油', kcal:80 }, { emoji:'🧂', name:'调料', kcal:40 },
+    ],
+    '白灼虾': [
+      { emoji:'🍤', name:'虾', kcal:180 }, { emoji:'🥘', name:'蘸料', kcal:70 },
+    ],
+    '水煮鱼片': [
+      { emoji:'🐟', name:'鱼片', kcal:180 }, { emoji:'🌶️', name:'辣椒+花椒+油', kcal:180 },
+      { emoji:'🥬', name:'豆芽+白菜', kcal:60 },
+    ],
+    // === 新增：豆腐类 ===
+    '麻婆豆腐（盖饭）': [
+      { emoji:'🧈', name:'豆腐', kcal:120 }, { emoji:'🥩', name:'肉末', kcal:100 },
+      { emoji:'🌶️', name:'豆瓣酱+花椒', kcal:60 }, { emoji:'🍚', name:'米饭', kcal:200 },
+    ],
+    '皮蛋豆腐': [
+      { emoji:'🧈', name:'豆腐', kcal:80 }, { emoji:'🥚', name:'皮蛋（2个）', kcal:100 },
+    ],
+    // === 新增：凉菜 ===
+    '口水鸡': [
+      { emoji:'🍗', name:'鸡肉', kcal:200 }, { emoji:'🌶️', name:'红油+花椒', kcal:150 },
+      { emoji:'🥜', name:'花生碎+芝麻', kcal:70 },
+    ],
+    '夫妻肺片': [
+      { emoji:'🥩', name:'牛肉+牛杂', kcal:200 }, { emoji:'🌶️', name:'红油+辣椒', kcal:150 },
+      { emoji:'🥜', name:'花生+芝麻', kcal:30 },
+    ],
+    '蒜泥白肉': [
+      { emoji:'🥩', name:'猪五花肉', kcal:280 }, { emoji:'🧄', name:'蒜泥+红油', kcal:170 },
+    ],
+    // === 新增：干锅 ===
+    '干锅花菜': [
+      { emoji:'🥬', name:'花菜', kcal:80 }, { emoji:'🥩', name:'五花肉片', kcal:150 },
+      { emoji:'🌶️', name:'干辣椒+豆瓣+油', kcal:150 },
+    ],
+    '干锅牛蛙': [
+      { emoji:'🐸', name:'牛蛙', kcal:180 }, { emoji:'🥔', name:'土豆+藕片', kcal:100 },
+      { emoji:'🌶️', name:'辣椒+花椒+油', kcal:220 },
+    ],
+    '鸡公煲': [
+      { emoji:'🍗', name:'鸡肉', kcal:250 }, { emoji:'🧅', name:'洋葱+青椒+芹菜', kcal:40 },
+      { emoji:'🥘', name:'酱料+油', kcal:200 }, { emoji:'🍚', name:'配米饭', kcal:160 },
+    ],
+    // === 新增：港式 ===
+    '虾饺（4个）': [
+      { emoji:'🍤', name:'虾仁馅', kcal:100 }, { emoji:'🫓', name:'澄粉皮', kcal:60 },
+      { emoji:'🧂', name:'调料', kcal:20 },
+    ],
+    '豉汁排骨': [
+      { emoji:'🦴', name:'排骨', kcal:250 }, { emoji:'🫘', name:'豆豉+调料', kcal:100 },
+    ],
+    '海南鸡饭': [
+      { emoji:'🍗', name:'白切鸡', kcal:250 }, { emoji:'🍚', name:'鸡油饭', kcal:250 },
+      { emoji:'🥘', name:'蘸料+汤', kcal:50 },
+    ],
+    // === 新增：东南亚 ===
+    '冬阴功汤': [
+      { emoji:'🍤', name:'虾+海鲜', kcal:100 }, { emoji:'🍄', name:'蘑菇', kcal:30 },
+      { emoji:'🌶️', name:'冬阴功酱+椰奶', kcal:120 }, { emoji:'🧂', name:'香料+鱼露', kcal:30 },
+    ],
+    '泰式炒河粉': [
+      { emoji:'🍜', name:'河粉', kcal:200 }, { emoji:'🍤', name:'虾仁', kcal:80 },
+      { emoji:'🥚', name:'鸡蛋', kcal:70 }, { emoji:'🥜', name:'花生碎+酱料', kcal:130 },
+    ],
+    '越南河粉': [
+      { emoji:'🍜', name:'河粉', kcal:200 }, { emoji:'🥩', name:'牛肉片', kcal:100 },
+      { emoji:'🦴', name:'牛骨汤', kcal:80 },
+    ],
+    '绿咖喱鸡': [
+      { emoji:'🍗', name:'鸡肉', kcal:200 }, { emoji:'🥥', name:'椰奶+绿咖喱', kcal:180 },
+      { emoji:'🥬', name:'蔬菜', kcal:40 },
+    ],
+    '叻沙': [
+      { emoji:'🍜', name:'米粉', kcal:180 }, { emoji:'🍤', name:'虾+鱼饼', kcal:120 },
+      { emoji:'🥥', name:'叻沙汤底', kcal:200 },
+    ],
+    // === 新增：川菜 ===
+    '水煮牛肉': [
+      { emoji:'🥩', name:'牛肉片', kcal:220 }, { emoji:'🌶️', name:'辣椒+花椒+油', kcal:220 },
+      { emoji:'🥬', name:'垫底蔬菜', kcal:30 }, { emoji:'🧄', name:'蒜末+调料', kcal:80 },
+    ],
+    '毛血旺': [
+      { emoji:'🥩', name:'血旺+午餐肉+毛肚', kcal:280 }, { emoji:'🌶️', name:'红油+辣椒+花椒', kcal:250 },
+      { emoji:'🥬', name:'豆芽+蔬菜', kcal:40 }, { emoji:'🧄', name:'蒜+调料', kcal:80 },
+    ],
+    '东坡肉': [
+      { emoji:'🥩', name:'五花肉', kcal:480 }, { emoji:'🥘', name:'酱油+冰糖+黄酒', kcal:240 },
+    ],
+    '剁椒鱼头': [
+      { emoji:'🐟', name:'鱼头', kcal:200 }, { emoji:'🌶️', name:'剁椒+蒸制调料', kcal:180 },
+      { emoji:'🍜', name:'配面条', kcal:70 },
+    ],
+    '辣椒炒肉': [
+      { emoji:'🥩', name:'猪肉片', kcal:220 }, { emoji:'🫑', name:'青椒', kcal:30 },
+      { emoji:'🧅', name:'豆豉+蒜+油', kcal:120 },
+    ],
+    // === 新增：粤菜 ===
+    '白切鸡': [
+      { emoji:'🍗', name:'整鸡（半只）', kcal:280 }, { emoji:'🧅', name:'姜葱蘸料', kcal:80 },
+      { emoji:'🥘', name:'鸡油', kcal:60 },
+    ],
+    '烧鹅': [
+      { emoji:'🦆', name:'鹅肉', kcal:420 }, { emoji:'🍯', name:'蜜汁+脆皮', kcal:230 },
+    ],
+    '蜜汁叉烧': [
+      { emoji:'🥩', name:'猪梅花肉', kcal:300 }, { emoji:'🍯', name:'蜜汁+酱料', kcal:180 },
+    ],
+    // === 新增：东北 ===
+    '猪肉炖粉条': [
+      { emoji:'🥩', name:'五花肉', kcal:300 }, { emoji:'🍜', name:'粉条', kcal:180 },
+      { emoji:'🥬', name:'酸菜', kcal:40 }, { emoji:'🥘', name:'炖汤+调料', kcal:100 },
+    ],
+    '小鸡炖蘑菇': [
+      { emoji:'🍗', name:'鸡肉', kcal:250 }, { emoji:'🍄', name:'榛蘑', kcal:40 },
+      { emoji:'🍜', name:'粉条', kcal:100 }, { emoji:'🥘', name:'炖汤+调料', kcal:130 },
+    ],
+    '酸菜白肉': [
+      { emoji:'🥩', name:'白肉（五花肉）', kcal:300 }, { emoji:'🥬', name:'酸菜', kcal:40 },
+      { emoji:'🥘', name:'骨头汤+调料', kcal:110 },
+    ],
+    // === 新增：西北 ===
+    '羊肉泡馍': [
+      { emoji:'🍞', name:'馍（饼）', kcal:200 }, { emoji:'🐑', name:'羊肉', kcal:200 },
+      { emoji:'🦴', name:'羊肉汤', kcal:180 }, { emoji:'🧄', name:'糖蒜+辣酱+香菜', kcal:70 },
+    ],
+    '油泼面': [
+      { emoji:'🍜', name:'宽面', kcal:250 }, { emoji:'🫗', name:'热油+辣椒面', kcal:180 },
+      { emoji:'🧄', name:'蒜末+葱花+酱油', kcal:90 },
+    ],
+    // === 新增：新疆 ===
+    '大盘鸡': [
+      { emoji:'🍗', name:'鸡肉', kcal:280 }, { emoji:'🥔', name:'土豆', kcal:100 },
+      { emoji:'🫑', name:'青椒+洋葱', kcal:40 }, { emoji:'🍜', name:'皮带面+酱汁', kcal:260 },
+    ],
+    '手抓饭': [
+      { emoji:'🍚', name:'米饭', kcal:200 }, { emoji:'🐑', name:'羊肉', kcal:180 },
+      { emoji:'🥕', name:'胡萝卜+葡萄干', kcal:90 }, { emoji:'🫗', name:'羊油+调料', kcal:80 },
+    ],
+    // === 新增：快餐连锁 ===
+    '巨无霸': [
+      { emoji:'🍞', name:'三层面包', kcal:200 }, { emoji:'🥩', name:'双层牛肉饼', kcal:280 },
+      { emoji:'🧀', name:'芝士+酱料+酸黄瓜', kcal:70 },
+    ],
+    '麦辣鸡腿堡': [
+      { emoji:'🍞', name:'面包', kcal:170 }, { emoji:'🍗', name:'炸鸡腿肉', kcal:250 },
+      { emoji:'🥬', name:'生菜+辣酱', kcal:100 },
+    ],
+    '原味鸡（2块）': [
+      { emoji:'🍗', name:'鸡肉', kcal:220 }, { emoji:'🍞', name:'裹粉+炸油', kcal:160 },
+    ],
+    // === 新增：早餐 ===
+    '豆腐脑': [
+      { emoji:'🧈', name:'豆腐脑', kcal:100 }, { emoji:'🥘', name:'卤汁+木耳+黄花', kcal:80 },
+    ],
+    '胡辣汤': [
+      { emoji:'🥘', name:'骨汤底', kcal:120 }, { emoji:'🧈', name:'豆腐+面筋', kcal:80 },
+      { emoji:'🥩', name:'牛肉粒+胡椒', kcal:80 },
+    ],
+    // === 新增：节日食品 ===
+    '月饼（1个）': [
+      { emoji:'🍞', name:'饼皮', kcal:140 }, { emoji:'🫘', name:'莲蓉/豆沙馅', kcal:200 },
+      { emoji:'🥚', name:'咸蛋黄', kcal:80 },
+    ],
+    '粽子（1个）': [
+      { emoji:'🍚', name:'糯米', kcal:160 }, { emoji:'🥩', name:'五花肉+咸蛋黄', kcal:100 },
+      { emoji:'🧂', name:'酱油+调料', kcal:40 },
+    ],
+    '汤圆（10个）': [
+      { emoji:'🍚', name:'糯米皮', kcal:180 }, { emoji:'🥜', name:'芝麻/花生馅', kcal:170 },
+    ],
+    // === 新增：盖饭补充 ===
+    '咖喱牛肉盖饭': [
+      { emoji:'🥩', name:'牛肉', kcal:150 }, { emoji:'🥔', name:'土豆+胡萝卜', kcal:80 },
+      { emoji:'🍛', name:'咖喱块', kcal:130 }, { emoji:'🍚', name:'米饭', kcal:200 },
+    ],
+    '牛丼': [
+      { emoji:'🥩', name:'肥牛片', kcal:220 }, { emoji:'🧅', name:'洋葱', kcal:30 },
+      { emoji:'🥘', name:'酱汁', kcal:100 }, { emoji:'🍚', name:'米饭', kcal:200 },
+    ],
+    '亲子丼': [
+      { emoji:'🍗', name:'鸡肉', kcal:150 }, { emoji:'🥚', name:'鸡蛋', kcal:90 },
+      { emoji:'🧅', name:'洋葱+酱汁', kcal:60 }, { emoji:'🍚', name:'米饭', kcal:180 },
+    ],
+    // === 新增：面食补充 ===
+    '红烧牛肉面': [
+      { emoji:'🍜', name:'面条', kcal:220 }, { emoji:'🥩', name:'红烧牛肉', kcal:200 },
+      { emoji:'🥬', name:'青菜', kcal:15 }, { emoji:'🦴', name:'牛骨汤底', kcal:105 },
+    ],
+    '打卤面': [
+      { emoji:'🍜', name:'面条', kcal:220 }, { emoji:'🥩', name:'肉末', kcal:80 },
+      { emoji:'🍄', name:'木耳+黄花+鸡蛋', kcal:60 }, { emoji:'🥘', name:'卤汁', kcal:60 },
+    ],
+    '疙瘩汤': [
+      { emoji:'🫓', name:'面疙瘩', kcal:120 }, { emoji:'🍅', name:'番茄+鸡蛋', kcal:60 },
+      { emoji:'🥬', name:'青菜', kcal:20 }, { emoji:'🥘', name:'汤底+油', kcal:50 },
+    ],
+    // === 新增：饼类 ===
+    '韭菜盒子（3个）': [
+      { emoji:'🫓', name:'面皮', kcal:140 }, { emoji:'🥬', name:'韭菜', kcal:30 },
+      { emoji:'🥚', name:'鸡蛋', kcal:90 }, { emoji:'🫗', name:'油煎', kcal:160 },
+    ],
+    // === 新增：甜品 ===
+    '提拉米苏': [
+      { emoji:'🧀', name:'马斯卡彭芝士', kcal:140 }, { emoji:'🍪', name:'手指饼干', kcal:80 },
+      { emoji:'☕', name:'咖啡+可可粉', kcal:20 }, { emoji:'🥚', name:'蛋黄+糖', kcal:110 },
+    ],
+    '芝士蛋糕': [
+      { emoji:'🧀', name:'奶油芝士', kcal:180 }, { emoji:'🍪', name:'饼干底', kcal:80 },
+      { emoji:'🥚', name:'鸡蛋+糖+奶油', kcal:120 },
+    ],
+    // === 新增：便利店 ===
+    '关东煮（6串）': [
+      { emoji:'🍢', name:'鱼丸+鱼豆腐', kcal:120 }, { emoji:'🥚', name:'鸡蛋+萝卜', kcal:80 },
+      { emoji:'🦴', name:'汤底', kcal:100 },
+    ],
+  };
+  for (const [name, ings] of Object.entries(extra)) {
+    map.set(name, ings);
+  }
+  return map;
+}
+
+const FOOD_INGREDIENTS_MAP = buildIngredientsMap();
+
+// Helper: fill ingredient rows in the add form
+function fillIngredientRows(ingredients) {
+  const container = document.getElementById('addIngredients');
+  container.innerHTML = '';
+  ingredients.forEach(ing => {
+    const row = document.createElement('div');
+    row.className = 'ing-input-row';
+    row.innerHTML = `
+      <input class="ing-emoji-inp" placeholder="🍳" maxlength="4" value="${ing.emoji}">
+      <input class="ing-name-inp" placeholder="食材名" value="${ing.name}">
+      <input class="ing-kcal-inp" type="number" placeholder="kcal" min="5" max="2000" value="${ing.kcal}">
+      <button class="ing-del" title="删除">✕</button>
+    `;
+    row.querySelector('.ing-del').addEventListener('click', () => row.remove());
+    container.appendChild(row);
+  });
+}
+
+function matchFoodKcal(query) {
+  if (!query || query.length < 2) return null;
+  const q = query.trim();
+
+  // 1. Exact match
+  if (FOOD_KCAL_DB.has(q)) return { name: q, kcal: FOOD_KCAL_DB.get(q), exact: true };
+
+  // 2. Query is contained in a known food name (e.g. "红烧肉" → "红烧肉盖饭")
+  let bestMatch = null;
+  for (const [name, kcal] of FOOD_KCAL_DB) {
+    if (name.includes(q)) {
+      // Prefer shorter names (closer match)
+      if (!bestMatch || name.length < bestMatch.name.length) {
+        bestMatch = { name, kcal, exact: false };
+      }
+    }
+  }
+  if (bestMatch) return bestMatch;
+
+  // 3. Known food name is contained in query (e.g. "我要吃红烧肉盖饭" → "红烧肉盖饭")
+  for (const [name, kcal] of FOOD_KCAL_DB) {
+    if (q.includes(name)) {
+      if (!bestMatch || name.length > bestMatch.name.length) {
+        bestMatch = { name, kcal, exact: false };
+      }
+    }
+  }
+  return bestMatch;
+}
+
+// Attach input listener for auto kcal + ingredients
+document.getElementById('addName').addEventListener('input', function() {
+  const match = matchFoodKcal(this.value);
+  const kcalInput = document.getElementById('addKcal');
+  const hint = document.getElementById('kcalHint');
+
+  if (match) {
+    kcalInput.value = match.kcal;
+    kcalInput.style.borderColor = 'rgba(255,152,0,0.5)';
+    hint.textContent = match.exact ? '✅ 已匹配' : `🔍 参考「${match.name}」`;
+    hint.className = 'kcal-hint show match';
+    // Clear the highlight after 2s
+    clearTimeout(this._kcalTimeout);
+    this._kcalTimeout = setTimeout(() => {
+      kcalInput.style.borderColor = 'rgba(255,255,255,0.12)';
+    }, 2000);
+
+    // Auto-fill ingredients if available
+    const ings = FOOD_INGREDIENTS_MAP.get(match.name);
+    if (ings && ings.length) {
+      fillIngredientRows(ings);
+      hint.textContent = (match.exact ? '✅ 已匹配' : `🔍 参考「${match.name}」`) + ' · 食材已拆解';
+    }
+  } else if (this.value.trim().length >= 2) {
+    hint.textContent = '⚠️ 未匹配，请手动输入';
+    hint.className = 'kcal-hint show no-match';
+    kcalInput.style.borderColor = 'rgba(255,255,255,0.12)';
+  } else {
+    hint.textContent = '';
+    hint.className = 'kcal-hint';
+    kcalInput.style.borderColor = 'rgba(255,255,255,0.12)';
+  }
+});
+
+// ==================== ONLINE SEARCH (Open Food Facts) ====================
+const searchBtn = document.getElementById('btnSearchOnline');
+const searchResults = document.getElementById('searchResults');
+let onlineResults = [];
+
+searchBtn.addEventListener('click', async function() {
+  const query = document.getElementById('addName').value.trim();
+  if (!query || query.length < 2) {
+    document.getElementById('addName').focus();
+    return;
+  }
+
+  searchBtn.disabled = true;
+  searchBtn.textContent = '⏳';
+  searchResults.innerHTML = '<div class="search-loading">🔍 正在搜索全球食物数据库...</div>';
+  searchResults.classList.add('show');
+
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&json=1&page_size=8&lc=zh`;
+  onlineResults = [];
+
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const data = await resp.json();
+    const products = (data.products || [])
+      .filter(p => p.product_name || p.product_name_zh)
+      .map(p => {
+        const nut = p.nutriments || {};
+        // Try multiple kcal fields
+        const kcal100g = nut['energy-kcal_100g'] || nut.energy_kcal_100g || nut['energy-kcal'] || nut.energy_kcal;
+        const kcalServing = nut['energy-kcal_serving'] || nut.energy_kcal_serving;
+        return {
+          name: p.product_name_zh || p.product_name || '未知产品',
+          brand: p.brands || '',
+          kcal100g: kcal100g ? Math.round(kcal100g) : null,
+          kcalServing: kcalServing ? Math.round(kcalServing) : null,
+          servingSize: p.serving_size || '',
+          ingredients: p.ingredients_text_zh || p.ingredients_text || '',
+          image: p.image_small_url || p.image_url || '',
+          quantity: p.quantity || '',
+        };
+      })
+      .filter(p => p.kcal100g || p.kcalServing)
+      .slice(0, 8);
+
+    onlineResults = products;
+
+    if (products.length === 0) {
+      searchResults.innerHTML = '<div class="search-empty">😔 未找到匹配的食物<br><small style="color:#555">试试简化关键词，或依赖本地数据库手动填写</small></div>';
+    } else {
+      searchResults.innerHTML = products.map((p, i) => `
+        <div class="search-result-item" data-index="${i}">
+          ${p.image ? `<img src="${p.image}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<span class="no-img">📦</span>'}
+          <div class="search-result-info">
+            <span class="search-result-name">${p.name}</span>
+            ${p.brand ? `<span class="search-result-brand">🏭 ${p.brand} ${p.quantity ? '· '+p.quantity : ''}</span>` : ''}
+            <span class="search-result-kcal">🔥 ${p.kcalServing ? p.kcalServing+' kcal/份' : ''}${p.kcal100g ? (p.kcalServing ? ' · ' : '')+p.kcal100g+' kcal/100g' : ''}</span>
+          </div>
+        </div>
+      `).join('');
+
+      // Bind click to select result
+      searchResults.querySelectorAll('.search-result-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const idx = parseInt(el.dataset.index);
+          if (idx >= 0 && idx < onlineResults.length) {
+            applyOnlineResult(onlineResults[idx]);
+          }
+        });
+      });
+    }
+  } catch (e) {
+    if (e.name === 'TimeoutError' || e.name === 'AbortError') {
+      searchResults.innerHTML = '<div class="search-empty">⏰ 请求超时<br><small style="color:#555">网络较慢，试试更短的关键词或使用本地数据库</small></div>';
+    } else {
+      searchResults.innerHTML = '<div class="search-empty">⚠️ 网络错误<br><small style="color:#555">请检查网络连接后重试</small></div>';
+    }
+  }
+
+  searchBtn.disabled = false;
+  searchBtn.textContent = '🔍 搜索';
+});
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+  if (!searchResults.contains(e.target) && e.target !== searchBtn) {
+    searchResults.classList.remove('show');
+  }
+});
+
+function applyOnlineResult(product) {
+  searchResults.classList.remove('show');
+
+  // Fill kcal - prefer per-serving if available, otherwise estimate based on 100g
+  const kcal = product.kcalServing || product.kcal100g || null;
+  if (kcal) {
+    document.getElementById('addKcal').value = kcal;
+    document.getElementById('addKcal').style.borderColor = 'rgba(255,152,0,0.5)';
+    const hint = document.getElementById('kcalHint');
+    hint.textContent = '🌐 在线数据';
+    hint.className = 'kcal-hint show match';
+    setTimeout(() => {
+      document.getElementById('addKcal').style.borderColor = 'rgba(255,255,255,0.12)';
+    }, 2000);
+  }
+
+  // Parse and fill ingredients
+  if (product.ingredients) {
+    const ings = parseIngredientsFromText(product.ingredients);
+    if (ings.length > 0) {
+      fillIngredientRows(ings);
+    }
+  }
+
+  onlineResults = [];
+}
+
+function parseIngredientsFromText(text) {
+  if (!text || text.length < 2) return [];
+  // Split by common separators: comma, period, parentheses, etc.
+  const cleaned = text
+    .replace(/\([^)]*\)/g, ',')  // Remove parenthetical content
+    .replace(/[[^[]*]/g, ',')    // Remove bracketed content
+    .replace(/ ingredients?:/i, '')
+    .replace(/ contains?:/i, '');
+
+  const parts = cleaned.split(/[,，;；、。/—|·•\n]|and\s|et\s|und\s/).filter(Boolean);
+
+  // Take meaningful parts, estimate kcal distribution
+  const ings = [];
+  const totalKcal = parseInt(document.getElementById('addKcal').value) || 500;
+  let remainingKcal = totalKcal;
+
+  const meaningful = parts
+    .map(p => p.trim())
+    .filter(p => p.length > 1 && !/^\d+%?$/.test(p) && !/^\d+g$/.test(p))
+    .slice(0, 8);
+
+  if (meaningful.length === 0) return [];
+
+  // Distribute kcal evenly-ish, with first items getting more
+  meaningful.forEach((name, i) => {
+    const portion = i === 0 ? 0.3 : i === 1 ? 0.2 : (0.5 / Math.max(meaningful.length - 2, 1));
+    const kcal = i < meaningful.length - 1
+      ? Math.round(totalKcal * portion)
+      : remainingKcal;
+    remainingKcal -= kcal;
+    ings.push({
+      emoji: guessIngredientEmoji(name),
+      name: name.substring(0, 15),
+      kcal: Math.max(5, kcal),
+    });
+  });
+
+  return ings;
+}
+
+function guessIngredientEmoji(name) {
+  const n = name.toLowerCase();
+  if (/鸡|chicken|pollo|poulet/i.test(n)) return '🍗';
+  if (/猪|pork|porc/i.test(n)) return '🥩';
+  if (/牛|beef|boeuf|bœuf/i.test(n)) return '🥩';
+  if (/鱼|fish|poisson|pescado/i.test(n)) return '🐟';
+  if (/虾|shrimp|prawn|crevette|gamba/i.test(n)) return '🍤';
+  if (/蛋|egg|oeuf|huevo/i.test(n)) return '🥚';
+  if (/米|rice|arroz|riz/i.test(n)) return '🍚';
+  if (/面|noodle|pasta|pâte|fideo/i.test(n)) return '🍜';
+  if (/奶|milk|leche|lait|latte/i.test(n)) return '🥛';
+  if (/芝士|奶酪|cheese|fromage|queso/i.test(n)) return '🧀';
+  if (/糖|sugar|azúcar|sucre/i.test(n)) return '🍬';
+  if (/油|oil|aceite|huile/i.test(n)) return '🫗';
+  if (/蔬菜|菜|vegetable|verdura|légume|leaf/i.test(n)) return '🥬';
+  if (/土豆|potato|patata|pomme/i.test(n)) return '🥔';
+  if (/番茄|tomato|tomate/i.test(n)) return '🍅';
+  if (/辣椒|chili|chilli|piment/i.test(n)) return '🌶️';
+  if (/水果|fruit/i.test(n)) return '🍎';
+  if (/巧克力|chocolate/i.test(n)) return '🍫';
+  if (/水|water|eau|agua/i.test(n)) return '💧';
+  if (/盐|salt|sel|sal/i.test(n)) return '🧂';
+  if (/麦|燕麦|oat|wheat|trigo|blé/i.test(n)) return '🌾';
+  if (/豆|bean|haricot|frijol/i.test(n)) return '🫘';
+  if (/豆腐|tofu/i.test(n)) return '🧈';
+  if (/蘑菇|mushroom|champi/i.test(n)) return '🍄';
+  if (/花生|peanut|cacahuète|cacahuete/i.test(n)) return '🥜';
+  if (/虾|shrimp|prawn/i.test(n)) return '🍤';
+  return '🍳';
+}
+
+function addIngredientRow() {
+  const container = document.getElementById('addIngredients');
+  const row = document.createElement('div');
+  row.className = 'ing-input-row';
+  row.innerHTML = `
+    <input class="ing-emoji-inp" placeholder="🍳" maxlength="4">
+    <input class="ing-name-inp" placeholder="食材名">
+    <input class="ing-kcal-inp" type="number" placeholder="kcal" min="5" max="2000">
+    <button class="ing-del" title="删除">✕</button>
+  `;
+  row.querySelector('.ing-del').addEventListener('click', () => row.remove());
+  container.appendChild(row);
+}
+
+function openAddModal() {
+  document.getElementById('addOverlay').classList.add('show');
+  document.getElementById('addModal').classList.add('show');
+  document.getElementById('addName').value = '';
+  document.getElementById('addEmoji').value = '';
+  document.getElementById('addKcal').value = '';
+  document.getElementById('addKcal').style.borderColor = 'rgba(255,255,255,0.12)';
+  document.getElementById('addNote').value = '';
+  document.getElementById('addCategory').value = 'canteen';
+  document.getElementById('addIngredients').innerHTML = '';
+  const hint = document.getElementById('kcalHint');
+  hint.textContent = '';
+  hint.className = 'kcal-hint';
+  document.getElementById('searchResults').classList.remove('show');
+  document.getElementById('searchResults').innerHTML = '';
+  onlineResults = [];
+}
+
+function closeAddModal() {
+  document.getElementById('addOverlay').classList.remove('show');
+  document.getElementById('addModal').classList.remove('show');
+}
+
+function submitAddFood() {
+  const name = document.getElementById('addName').value.trim();
+  const emoji = document.getElementById('addEmoji').value.trim() || '🍽️';
+  const kcalStr = document.getElementById('addKcal').value.trim();
+  const note = document.getElementById('addNote').value.trim() || '自定义美食 ✨';
+  const catId = document.getElementById('addCategory').value;
+
+  if (!name) { alert('请输入食物名称'); return; }
+  const kcal = parseInt(kcalStr) || 0;
+  if (!kcalStr || kcal < 10 || kcal > 3000) { alert('请输入合理的热量（10-3000 kcal）'); return; }
+
+  const ingRows = document.querySelectorAll('#addIngredients .ing-input-row');
+  const ingredients = [];
+  ingRows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const ingEmoji = inputs[0].value.trim() || '🍳';
+    const ingName = inputs[1].value.trim();
+    const ingKcal = parseInt(inputs[2].value) || 0;
+    if (ingName && ingKcal > 0) {
+      ingredients.push({ emoji: ingEmoji, name: ingName, kcal: ingKcal });
+    }
+  });
+
+  const cat = CATEGORIES.find(c => c.id === catId);
+  const catIdx = CATEGORIES.indexOf(cat);
+  const catGroup = catGroups[catIdx];
+
+  const item = { emoji, name, kcal, note };
+  if (ingredients.length) item.ingredients = ingredients;
+
+  cat.items.push(item);
+
+  const data = createFoodNode(item, catGroup, cat.pos, cat.items.length - 1, cat.items.length);
+  data.catPos = new THREE.Vector3(...cat.pos);
+  data.catId = cat.id;
+  createConnection(data.catPos, data.group.position.clone(), data.color.getHex());
+
+  ALL_FOODS = CATEGORIES.flatMap(cat => cat.items.map(item => Object.assign(item, { catColor: cat.color })));
+
+  drawWheel();
+  closeAddModal();
+
+  data.group.scale.set(1.5, 1.5, 1.5);
+  setTimeout(() => { if (!data.flyState) data.group.scale.set(1, 1, 1); }, 600);
+}
+
+document.getElementById('btnAdd').addEventListener('click', openAddModal);
+document.getElementById('addOverlay').addEventListener('click', closeAddModal);
+document.getElementById('btnCancelAdd').addEventListener('click', closeAddModal);
+document.getElementById('btnSubmitAdd').addEventListener('click', submitAddFood);
+document.getElementById('btnAddIng').addEventListener('click', addIngredientRow);
+
+// ==================== EVENTS ====================
+window.addEventListener('pointermove', onPointerMove, { passive: true });
+window.addEventListener('click', onClick, { passive: true });
+
+// Touch: distinguish drag from tap
+let touchStartTime = 0;
+let touchMoved = false;
+window.addEventListener('touchstart', () => { touchStartTime = Date.now(); touchMoved = false; });
+window.addEventListener('touchmove', () => { touchMoved = true; });
+window.addEventListener('touchend', (e) => {
+  if (!touchMoved && Date.now() - touchStartTime < 300) {
+    onClick(e);
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ==================== ANIMATION LOOP ====================
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now();
+  const dt = Math.min(clock.getDelta(), 0.1);
+  controls.update();
+
+  // Rotate center glow ring and dots
+  const glowRing = centerGroup.getObjectByName('glowRing');
+  const dots = centerGroup.getObjectByName('dots');
+  if (glowRing) glowRing.rotation.z += dt * 0.4;
+  if (dots) dots.rotation.z += dt * 0.3;
+
+  // Check if any food is presenting (fly animation active)
+  let isPresenting = false;
+
+  // Animate food nodes
+  foodNodeData.forEach((fd, i) => {
+    // --- FLY-TO-CAMERA ANIMATION ---
+    if (fd.flyState === 'toCamera') {
+      isPresenting = true;
+      const t = Math.min((now - fd.flyStart) / fd.flyDuration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      fd.group.position.lerpVectors(fd.flyFrom, fd.flyTarget, ease);
+      fd.group.scale.setScalar(1.2 + t * 1.0); // grow from 1.2x to 2.2x
+      fd.sphere.material.emissiveIntensity = 1.5;
+      fd.glow.material.opacity = 0.5 + t * 0.3;
+      fd.group.lookAt(camera.position); // face the camera
+      if (t >= 1) {
+        fd.flyState = 'hold';
+        fd.flyStart = now;
+      }
+      return;
+    }
+
+    if (fd.flyState === 'hold') {
+      isPresenting = true;
+      // Gentle float while holding (no auto-return, wait for user to dismiss)
+      const floatY = Math.sin(now * 0.002) * 0.15;
+      fd.group.position.y = fd.flyTarget.y + floatY;
+      fd.group.lookAt(camera.position);
+      // Subtle pulse
+      const pulse = 1 + Math.sin(now * 0.004) * 0.06;
+      fd.group.scale.setScalar(2.2 * pulse);
+      return;
+    }
+
+    if (fd.flyState === 'toBase') {
+      isPresenting = true;
+      const t = Math.min((now - fd.flyStart) / fd.flyDuration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      fd.group.position.lerpVectors(fd.flyFrom, fd.flyTarget, ease);
+      fd.group.scale.setScalar(2.2 - t * 1.0);
+      fd.sphere.material.emissiveIntensity = 1.5 - t * 1.05;
+      fd.glow.material.opacity = 0.8 - t * 0.7;
+      // Smoothly stop looking at camera
+      if (t < 0.5) fd.group.lookAt(camera.position);
+      if (t >= 1) {
+        fd.flyState = null;
+        fd.group.scale.set(1, 1, 1);
+        fd.group.position.copy(fd.basePos);
+        fd.group.rotation.set(0, 0, 0);
+        fd.sphere.material.emissiveIntensity = 0.2;
+        fd.glow.material.opacity = 0.06;
+      }
+      return;
+    }
+
+    // Skip floating if selected or hovered
+    if (fd === selectedData || fd === hoveredData) return;
+    // Normal floating (reset all axes, then apply float offset)
+    fd.group.position.z = fd.basePos.z;
+    const offset = Math.sin(now * 0.001 + i * 1.7) * 0.08;
+    fd.group.position.y = fd.basePos.y + offset;
+    fd.group.position.x = fd.basePos.x + Math.cos(now * 0.0013 + i) * 0.05;
+  });
+
+  // Gentle repulsion: nudge basePos apart so spheres find their own space over time
+  for (let i = 0; i < foodNodeData.length; i++) {
+    for (let j = i + 1; j < foodNodeData.length; j++) {
+      const a = foodNodeData[i];
+      const b = foodNodeData[j];
+      if (a.flyState || b.flyState) continue;
+      if (a === selectedData || b === selectedData) continue;
+      if (a === hoveredData || b === hoveredData) continue;
+
+      const minDist = (a.size + b.size) * 2;
+      const dx = a.group.position.x - b.group.position.x;
+      const dy = a.group.position.y - b.group.position.y;
+      const dz = a.group.position.z - b.group.position.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < minDist && dist > 0.0001) {
+        const strength = (minDist - dist) / dist * 0.003;
+        a.basePos.x += dx * strength;
+        a.basePos.y += dy * strength;
+        a.basePos.z += dz * strength;
+        b.basePos.x -= dx * strength;
+        b.basePos.y -= dy * strength;
+        b.basePos.z -= dz * strength;
+      }
+    }
+  }
+
+  // Resume auto-rotate when presentation ends
+  if (!isPresenting && !selectedData) {
+    controls.autoRotate = true;
+  }
+
+  // Rotate particles slowly
+  particles.rotation.y += dt * 0.03;
+  particles.rotation.x += dt * 0.015;
+
+  // Pulse selected food (only when not in fly animation)
+  if (selectedData && !selectedData.flyState) {
+    const pulse = 1 + Math.sin(now * 0.005) * 0.08;
+    selectedData.group.scale.lerp(
+      new THREE.Vector3(pulse * 1.2, pulse * 1.2, pulse * 1.2),
+      0.1
+    );
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ==================== START ====================
+console.log('🍔 今天吃什么？3D版 初始化完成');
+console.log('  - 食物节点:', foodNodeData.length);
+console.log('  - 连接线:', connectionLines.length);
+console.log('  - 粒子:', 300);
+console.log('  - 可分解食物:', foodNodeData.filter(f => f.item.ingredients).length, '个');
+console.log('  🖱 拖拽旋转 | 滚轮缩放 | 点击食物查看详情');
+console.log('  🎡 点击转一转按钮体验食物转盘');
+
+animate();
+</script>
+</body>
+</html>
